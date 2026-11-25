@@ -1,0 +1,7 @@
+Akhirnya! uses the MediaPipe Selfie Segmentation and Face Detection solutions,
+released by Google LLC under the Apache License, Version 2.0.
+The original packages are served without modification.
+
+https://github.com/google-ai-edge/mediapipe
+https://www.npmjs.com/package/@mediapipe/selfie_segmentation
+https://www.npmjs.com/package/@mediapipe/face_detection

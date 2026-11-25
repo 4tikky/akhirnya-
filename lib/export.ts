@@ -1,4 +1,5 @@
 import { StaticCanvas } from 'fabric';
+import { validSize } from './banner-size';
 import { brandName } from './brand';
 import { populate, portraitImage } from './canvas';
 import { exportDimensions } from './export-math';
@@ -116,9 +117,10 @@ export function lowResolution(design: Design, project: Project, options: ExportO
 
 export async function renderExport(design: Design, project: Project, options: ExportOptions) {
   const {dpi,size,bleed,format,quality,transparent} = options;
+  if (!validSize(size)) throw new Error('Ukuran banner tidak valid.');
   const output = exportDimensions(size,dpi,bleed);
   if (!output.supported) throw new Error(`Dimensi melebihi batas browser. Gunakan maksimal sekitar ${output.maxDpi} DPI.`);
-  const canvas = new StaticCanvas(document.createElement('canvas'),{...design.dimensions,enableRetinaScaling:false,renderOnAddRemove:false});
+  const canvas = new StaticCanvas(document.createElement('canvas'),{width:1,height:1,enableRetinaScaling:false,renderOnAddRemove:false});
   try {
     await populate(canvas,design,project);
     for (const object of canvas.getObjects()) {
@@ -148,7 +150,7 @@ export async function renderExport(design: Design, project: Project, options: Ex
       const image = await toBlob(element,'image/jpeg',quality);
       const userUnit = Math.max(1,Math.ceil(Math.max(output.widthMm,output.heightMm)/5080));
       const width = output.widthMm/userUnit, height = output.heightMm/userUnit;
-      const pdf = new jsPDF({orientation:output.width>=output.height?'landscape':'portrait',unit:'mm',format:[width,height],userUnit,precision:8,compress:true});
+      const pdf = new jsPDF({orientation:width>=height?'landscape':'portrait',unit:'mm',format:[width,height],userUnit,precision:8,compress:true});
       pdf.setProperties({title:project.name || brandName,creator:brandName});
       pdf.addImage(new Uint8Array(await image.arrayBuffer()),'JPEG',0,0,width,height);
       return pdf.output('blob');

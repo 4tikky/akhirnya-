@@ -411,3 +411,31 @@ svg{flex-shrink:0}
 
 .mobile-projects{display:none}
 @media(max-width:630px){.mobile-projects{display:block}}
+
+.size-preset-group{display:grid;gap:8px}
+.size-preset-group h2{font-size:14px;font-weight:850;color:var(--brand)}
+.size-preset-group p{font-size:12px;color:var(--muted);margin-top:3px}
+.size-custom-button{justify-self:start}
+.size-custom-button[aria-pressed=true]{border-color:#9e5d4b}
+.size-preview{gap:9px;align-content:center}
+.size-preview>div.size-preview-shape{display:block;min-height:0;border:1px dashed #946754;background:#f7dfaa}
+.size-preview p{display:grid;text-align:center;color:var(--brand);font-size:13px;gap:2px}
+.size-preview p span{font-size:11px;color:var(--muted)}
+.design-preview{margin-inline:auto;max-height:none}
+.artboard-outline{position:absolute;pointer-events:none;box-shadow:0 0 0 1px #62453749,0 5px 16px #3e271623}
+.canvas-size{font-size:11px;font-weight:750;color:var(--muted);white-space:nowrap}
+@media(max-width:430px){.canvas-controls{gap:4px;padding-inline:5px}.canvas-controls .icon-btn{min-width:30px}.canvas-size{font-size:10px}}
+.stand-art-preview{display:grid;place-items:center;background:#f7eddf;padding:8px;min-height:168px}
+.stand-art-preview .art-stand{width:min(100%,calc(152px * var(--stand-ratio)));border-radius:2px;justify-content:space-between;box-shadow:0 2px 6px #452a2735}
+.art-stand .art-kicker{margin-top:10%;font-size:5.5cqw;line-height:1.15;width:81%}
+.art-stand .art-title{font-size:13cqw;line-height:.95;margin:4% 8%;white-space:normal}
+.art-stand .art-bottom{font-size:4cqw;margin:2% 0 10%}
+.stand-art-portraits{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1.25fr) minmax(0,1fr);gap:4%;width:80%;flex:1;min-height:0}
+.stand-art-portraits .art-person{width:100%;min-height:0;padding:5%;font:inherit;overflow:hidden}
+.stand-art-portraits .art-person:first-child{grid-column:span 2;width:72%;justify-self:center}
+.stand-art-portraits img{width:100%;object-position:50% 19%}
+.stand-art-portraits span{font-size:4cqw}
+.art-stand.art-newspaper .art-title{font-family:var(--serif);border-block:1px solid;padding-block:5%}
+.art-stand.art-cinematic .art-title{letter-spacing:0}
+.template-thumb .stand-art-preview{min-height:125px;padding:5px}
+.template-thumb .art-stand{width:min(100%,calc(114px * var(--stand-ratio)))}

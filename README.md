@@ -35,6 +35,10 @@ Uji browser memakai `/usr/bin/chromium` secara default. Gunakan `CHROMIUM_PATH` 
 
 Proyek disimpan per origin dan per profil browser. Gunakan unduhan `.akhirnya` dari **Proyek Saya** untuk memindahkan proyek antara localhost dan domain deployment. Proyek dari versi sebelumnya pada origin yang sama dimigrasikan otomatis. Cadangan lama tetap dapat diimpor.
 
+## Stand banner vertikal
+
+Pada langkah **Ukuran Banner**, pilih **Stand Banner / Vertikal** untuk ukuran 60 × 160, 80 × 180, 85 × 200, atau 100 × 200 cm. Masukkan ukuran lain melalui **Ukuran custom**, termasuk ukuran dengan desimal. Keenam gaya memiliki komposisi vertikal khusus. Ukuran yang dipilih dibawa ke studio dan menjadi ukuran awal ekspor.
+
 ## Arsitektur
 
 - `app/` berisi rute Next.js App Router. `components/` berisi wizard, galeri, dan studio responsif. Komponen UI menggunakan Tailwind CSS dan komponen internal dengan ikon Lucide.

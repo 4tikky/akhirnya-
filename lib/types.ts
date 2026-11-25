@@ -1,7 +1,16 @@
 import { defaultProjectName } from './brand';
 
 export type ThemeId = 'newspaper' | 'gaming' | 'scrapbook' | 'cinematic' | 'elegant' | 'meme';
-export type Strategy = 'symmetry' | 'pyramid' | 'staggered' | 'editorial' | 'collage' | 'cinematic' | 'rows' | 'hero';
+export const landscapeStrategies = ['symmetry','pyramid','staggered','editorial','collage','cinematic','rows','hero'] as const;
+export const portraitStrategies = ['portrait-centered','portrait-stack','portrait-editorial','portrait-collage','portrait-staggered','portrait-hero','portrait-blocks','portrait-newspaper','portrait-cinematic'] as const;
+export const strategies = [...landscapeStrategies,...portraitStrategies] as const;
+export type LandscapeStrategy = typeof landscapeStrategies[number];
+export type PortraitStrategy = typeof portraitStrategies[number];
+export type Strategy = typeof strategies[number];
+
+export function isPortraitStrategy(strategy: Strategy): strategy is PortraitStrategy {
+  return strategy.startsWith('portrait-');
+}
 export type Face = { x: number; y: number; w: number; h: number };
 export type Adjustments = { brightness: number; contrast: number; saturation: number; warmth: number; grayscale: number; exposure: number; sharpness: number };
 export const defaults: Adjustments = { brightness: 0, contrast: 0, saturation: 0, warmth: 0, grayscale: 0, exposure: 0, sharpness: 0 };
@@ -25,7 +34,7 @@ export type TextNode = Bounds & {
   kind: 'text'; text: string; font: string; fontSize: number; weight: string;
   color: string; align: 'left' | 'center' | 'right'; spacing?: number; graduateId?: string;
 };
-export type ShapeNode = Bounds & { kind: 'shape'; shape: 'rect' | 'ellipse' | 'star' | 'diamond' | 'bubble'; fill: string; stroke?: string; rotation?: number };
+export type ShapeNode = Bounds & { kind: 'shape'; shape: 'rect' | 'ellipse' | 'star' | 'diamond' | 'bubble'; fill: string; stroke?: string; rotation?: number; opacity?: number };
 export type PortraitNode = Bounds & { kind: 'portrait'; graduateId: string; rotation: number; frame: string; monochrome?: boolean };
 export type PhotoNode = Bounds & { kind: 'logo' };
 export type DesignNode = TextNode | ShapeNode | PortraitNode | PhotoNode;

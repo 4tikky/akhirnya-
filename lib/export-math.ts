@@ -2,13 +2,6 @@ import type { Size } from './types';
 
 export const MAX_PIXELS = 40_000_000;
 export const MAX_SIDE = 16384;
-export const presets = [{ width: 200, height: 100 }, { width: 300, height: 100 }, { width: 300, height: 150 }, { width: 400, height: 100 }, { width: 400, height: 200 }];
-
-export function validSize({ width, height }: Size) {
-  return Number.isFinite(width) && Number.isFinite(height) && width >= 10 && height >= 10 &&
-    width <= 1000 && height <= 1000 && width / height >= .5 && width / height <= 6;
-}
-
 export function exportDimensions(size: Size, dpi: number, bleedMm = 0) {
   const cm = { width: size.width + bleedMm / 5, height: size.height + bleedMm / 5 };
   const width = Math.round(cm.width / 2.54 * dpi);

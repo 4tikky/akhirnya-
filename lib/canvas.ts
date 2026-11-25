@@ -7,8 +7,8 @@ export type GradObject = FabricObject & { gradId?: string; label?: string; decor
 FabricObject.customProperties = [...new Set([...FabricObject.customProperties,'gradId','label','decorative','locked','selectable','evented','lockMovementX','lockMovementY','lockScalingX','lockScalingY','lockRotation','hasControls'])];
 
 export function makeShape(node: ShapeNode) {
-  const {x,y,w,h,fill,stroke,rotation,shape} = node;
-  const style = {left:x,top:y,fill,stroke,strokeWidth:stroke ? 2 : 0,angle:rotation ?? 0,objectCaching:false};
+  const {x,y,w,h,fill,stroke,rotation,shape,opacity} = node;
+  const style = {left:x,top:y,fill,stroke,strokeWidth:stroke ? 2 : 0,angle:rotation ?? 0,opacity:opacity ?? 1,objectCaching:false};
   if (shape === 'ellipse') return new Ellipse({...style,rx:w/2,ry:h/2});
   if (shape === 'rect' || shape === 'bubble') return new Rect({...style,width:w,height:h,rx:shape === 'bubble' ? w*.22 : 0,ry:shape === 'bubble' ? h*.22 : 0});
   const points = shape === 'diamond' ? [{x:w/2,y:0},{x:w,y:h/2},{x:w/2,y:h},{x:0,y:h/2}] :
@@ -71,11 +71,17 @@ export async function populate(canvas: Canvas | StaticCanvas, design: Design, pr
   canvas.requestRenderAll();
 }
 
-export async function previewDesign(design: Design, project: Project, width = 720) {
-  const canvas = new StaticCanvas(document.createElement('canvas'),{width:design.dimensions.width,height:design.dimensions.height,enableRetinaScaling:false,renderOnAddRemove:false});
+export async function previewDesign(design: Design, project: Project, maxSide = 720) {
+  const {width,height} = design.dimensions;
+  const scale = maxSide/Math.max(width,height);
+  const rasterWidth = Math.max(1,Math.round(width*scale));
+  const rasterHeight = Math.max(1,Math.round(height*scale));
+  const canvas = new StaticCanvas(document.createElement('canvas'),{width:rasterWidth,height:rasterHeight,enableRetinaScaling:false,renderOnAddRemove:false});
   try {
     await populate(canvas,design,project);
-    return canvas.toDataURL({format:'jpeg',quality:.87,multiplier:width/design.dimensions.width});
+    canvas.setViewportTransform([rasterWidth/width,0,0,rasterHeight/height,0,0]);
+    canvas.renderAll();
+    return canvas.getElement().toDataURL('image/jpeg',.87);
   } finally { await canvas.dispose(); }
 }
 

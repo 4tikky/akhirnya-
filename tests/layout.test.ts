@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { exportDimensions, validSize } from '../lib/export-math';
+import { validSize } from '../lib/banner-size';
+import { exportDimensions } from '../lib/export-math';
 import { canvasSize, generateDesigns, scoreLayout } from '../lib/layout';
 import { portraitCrop } from '../lib/photos';
 import { duplicateProject, exportProject, parseProject } from '../lib/storage';
@@ -111,4 +112,45 @@ test('wide 6:1 layout fits 20 graduates with the maximum name and degree lengths
     assert.equal(designs.length,3);
     assert(designs.every(design=>design.nodes.filter(node=>node.kind==='text' && node.graduateId).length===20));
   }
+});
+
+test('stand banners keep exact physical dimensions and select only vertical compositions',()=>{
+  const sizes = [
+    {width:60,height:160},{width:80,height:180},{width:85,height:200},{width:100,height:200},
+    {width:67.5,height:175.25},
+  ];
+  for (const size of sizes) for (const count of [3,5]) for (const theme of themes) {
+    const project={...fixture(count),size,theme:theme.id};
+    project.logo={src:'/demo/raka.webp',width:200,height:300};
+    const designs=generateDesigns(project);
+    const caseName=`${size.width} × ${size.height}, ${count} graduates, ${theme.name}`;
+    assert.equal(designs.length,3,caseName);
+    assert.equal(new Set(designs.map(design=>design.strategy)).size,3,caseName);
+    for (const design of designs) {
+      assert.deepEqual(design.size,size);
+      assert(design.strategy.startsWith('portrait-'));
+      assert(Math.abs(design.dimensions.width/design.dimensions.height-size.width/size.height)<1e-12);
+      const photos=design.nodes.filter(node=>node.kind==='portrait');
+      const names=design.nodes.filter(node=>node.kind==='text' && node.graduateId);
+      const logo=design.nodes.find(node=>node.kind==='logo');
+      assert(logo && logo.y < photos[0].y);
+      const footer=design.nodes.find(node=>node.kind==='text' && node.text===project.year);
+      assert(footer && footer.y > photos.at(-1)!.y);
+      assert(photos.some(photo=>photo.y > photos[0].y+photos[0].h));
+      assert.deepEqual(names.map(name=>name.kind==='text' && name.graduateId),project.graduates.map(person=>person.id));
+      assert(scoreLayout(design.nodes,design.dimensions,project,undefined,design.strategy)>0,caseName);
+      assert.equal(scoreLayout(design.nodes,design.dimensions,project,undefined,'editorial'),-1);
+    }
+    project.designs=designs;
+    assert.deepEqual(parseProject(exportProject(project)).designs.map(({size,dimensions})=>({size,dimensions})),designs.map(({size,dimensions})=>({size,dimensions})));
+  }
+});
+
+test('stand banner exports keep width and height in portrait order',()=>{
+  assert.deepEqual(canvasSize({width:60,height:160}),{width:450,height:1200});
+  assert(validSize({width:60,height:160}));
+  const stand=exportDimensions({width:60,height:160},72);
+  assert.deepEqual([stand.width,stand.height,stand.widthMm,stand.heightMm],[1701,4535,600,1600]);
+  const withBleed=exportDimensions({width:80,height:180},72,5);
+  assert.deepEqual([withBleed.width,withBleed.height,withBleed.widthMm,withBleed.heightMm],[2296,5131,810,1810]);
 });

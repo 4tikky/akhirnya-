@@ -38,13 +38,23 @@ async function download(page) {
   return readFile(path);
 }
 
-async function create(page, sizePreset) {
+async function openSizeStep(page) {
   await page.getByRole('link',{name:'Bikin Banner Sekarang'}).first().click();
   await page.getByLabel('Nama proyek *').fill('Wisuda Bersama');
   await page.getByLabel('Universitas').fill('Universitas Nusantara');
   await page.getByRole('button',{name:'Lanjutkan'}).click();
+}
+
+async function create(page, sizePreset) {
+  await openSizeStep(page);
   await page.getByRole('button',{name:sizePreset,exact:true}).click();
   await page.getByRole('button',{name:'Lanjutkan'}).click();
+}
+
+async function checkAspect(locator, ratio) {
+  const bounds = await locator.boundingBox();
+  assert(bounds && bounds.height>0);
+  assert(Math.abs(bounds.width/bounds.height-ratio)<.008,`aspect ratio ${bounds.width}/${bounds.height}`);
 }
 
 async function waitForSaved(page, check, timeout = 15000) {
@@ -223,4 +233,77 @@ try {
   await edges.getByRole('button',{name:'Unduh variasi 1'}).click();
   await edges.getByText(/Resolusi foto mungkin kurang pada DPI ini/).waitFor();
   console.log('Foto lanskap dengan beberapa wajah dan foto kecil tanpa wajah menghasilkan fallback dan peringatan yang tepat.');
+  for (const {width,height,count,custom,style} of [
+    {width:60,height:160,count:3,custom:true,style:'Vintage Newspaper'},
+    {width:80,height:180,count:5,custom:false,style:'Cinematic Poster'},
+  ]) {
+    const stand = await browser.newPage({viewport:{width:1360,height:920},acceptDownloads:true});
+    await stand.goto(base);
+    await openSizeStep(stand);
+    const presets = stand.getByRole('region',{name:'Stand Banner / Vertikal'});
+    await presets.getByText('Cocok untuk banner wisuda berdiri.').waitFor();
+    for (const label of ['60 × 160 cm','80 × 180 cm','85 × 200 cm','100 × 200 cm']) {
+      await presets.getByRole('button',{name:label,exact:true}).waitFor();
+    }
+    const sizeLabel = `${width} × ${height} cm`;
+    if (custom) {
+      await stand.getByRole('button',{name:'Ukuran custom'}).click();
+      await stand.getByLabel('Lebar (cm)').fill('67.5');
+      await stand.getByLabel('Tinggi (cm)').fill('175.25');
+      await stand.locator('.size-preview').getByText('67,5 × 175,25 cm',{exact:true}).waitFor();
+      await checkAspect(stand.locator('.size-preview-shape'),67.5/175.25);
+      await stand.getByLabel('Lebar (cm)').fill(String(width));
+      await stand.getByLabel('Tinggi (cm)').fill(String(height));
+      assert.equal(await stand.getByLabel('Tinggi (cm)').inputValue(),String(height));
+    } else {
+      await presets.getByRole('button',{name:sizeLabel,exact:true}).click();
+    }
+    await stand.locator('.size-preview').getByText(sizeLabel,{exact:true}).waitFor();
+    await checkAspect(stand.locator('.size-preview-shape'),width/height);
+    await stand.getByRole('button',{name:'Lanjutkan'}).click();
+    const images=['raka','nadia','tiara','faris','raka'].slice(0,count).map(name=>`public/demo/${name}.webp`);
+    await stand.locator('input[type=file][multiple]').setInputFiles(images);
+    await stand.getByLabel(`Nama wisudawan ${count} *`).waitFor();
+    await stand.getByRole('button',{name:'Lanjutkan'}).click();
+    await stand.getByRole('button',{name:new RegExp(style)}).click();
+    await checkAspect(stand.getByRole('img',{name:`Contoh stand banner ${style}`}),width/height);
+    await stand.getByRole('button',{name:'Buat 3 variasi desain'}).click();
+    const previews = stand.getByRole('img',{name:`Pratinjau desain ${style}`});
+    await previews.nth(2).waitFor();
+    const natural = await previews.first().evaluate(img=>img.naturalWidth/img.naturalHeight);
+    assert(Math.abs(natural-width/height)<.002);
+    await checkAspect(stand.locator('.design-preview').first(),width/height);
+    const saved = await waitForSaved(stand,project=>project?.step===4);
+    assert.deepEqual(saved.size,{width,height});
+    assert(saved.designs.every(design=>design.strategy.startsWith('portrait-')&&design.size.width===width&&design.size.height===height));
+    assert(saved.designs.every(design=>design.nodes.filter(node=>node.kind==='portrait').length===count));
+    if (style==='Cinematic Poster') {
+      const areas=saved.designs[0].nodes.filter(node=>node.kind==='portrait').map(photo=>photo.w*photo.h);
+      assert(Math.max(...areas)>1.5*Math.min(...areas));
+    }
+    await stand.getByRole('button',{name:'Edit desain'}).first().click();
+    await stand.locator('.canvas-size').getByText(sizeLabel,{exact:true}).waitFor();
+    await stand.getByRole('button',{name:'Siap Cetak!',exact:true}).waitFor();
+    await checkAspect(stand.locator('.artboard-outline'),width/height);
+    if(process.env.AKHIRNYA_SHOTS) await stand.screenshot({path:`/tmp/akhirnya-stand-${width}.png`});
+    await stand.getByRole('button',{name:'Siap Cetak!',exact:true}).click();
+    const dialog = stand.getByRole('dialog',{name:'Siap Cetak!'});
+    assert.equal(await dialog.getByLabel('Lebar (cm)').inputValue(),String(width));
+    assert.equal(await dialog.getByLabel('Tinggi (cm)').inputValue(),String(height));
+    await dialog.getByText(sizeLabel,{exact:true}).waitFor();
+    if (custom) {
+      const png = await download(stand);
+      assert.equal(png.readUInt32BE(16),1701);
+      assert.equal(png.readUInt32BE(20),4535);
+    } else {
+      await dialog.getByLabel('Format file').selectOption('pdf');
+      const pdf = await download(stand);
+      const mediaBox=pdf.toString('latin1').match(/\/MediaBox\s*\[0\s+0\s+([\d.]+)\s+([\d.]+)\]/);
+      assert(mediaBox);
+      assert(Math.abs(Number(mediaBox[1])*25.4/72-800)<.001);
+      assert(Math.abs(Number(mediaBox[2])*25.4/72-1800)<.001);
+    }
+    console.log(`Stand banner ${sizeLabel} dengan ${count} wisudawan terverifikasi dari wizard hingga ekspor.`);
+    await stand.close();
+  }
 } finally {await browser.close();}

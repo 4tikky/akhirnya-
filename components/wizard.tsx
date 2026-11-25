@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Crop, FileText, ImagePlus, Layers3, LoaderCircle, LockKeyhole, Plus, Ruler, ScanFace, Trash2, Upload, UsersRound } from 'lucide-react';
 import { useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import { validSize, presets } from '@/lib/export-math';
+import { aspectClass, formatSize, landscapePresets, sizeHelp, standPresets, validSize } from '@/lib/banner-size';
 import { generateInBrowser } from '@/lib/layout';
 import { activePhoto, readPhoto } from '@/lib/photos';
 import { processPhoto } from '@/lib/process';
@@ -21,8 +21,8 @@ const steps = [
   {title:'Gaya Desain', icon:Layers3, description:'Pilih gaya untuk membuat tiga variasi desain.'},
 ];
 
-export function Field({label,value,onChange,maxLength,placeholder,type='text',children}: {label:string;value?:string|number;onChange?:(value:string)=>void;maxLength?:number;placeholder?:string;type?:string;children?:ReactNode}) {
-  return <label className="field"><span>{label}</span>{children ?? <input type={type} value={value??''} onChange={event => onChange?.(event.target.value)} placeholder={placeholder} maxLength={maxLength}/>}</label>;
+export function Field({label,value,onChange,maxLength,placeholder,type='text',step,children}: {label:string;value?:string|number;onChange?:(value:string)=>void;maxLength?:number;placeholder?:string;type?:string;step?:string;children?:ReactNode}) {
+  return <label className="field"><span>{label}</span>{children ?? <input type={type} value={value??''} onChange={event => onChange?.(event.target.value)} placeholder={placeholder} maxLength={maxLength} step={step}/>}</label>;
 }
 
 export function Wizard({project}: {project:Project}) {
@@ -36,17 +36,31 @@ export function Wizard({project}: {project:Project}) {
   const logoInput = useRef<HTMLInputElement>(null);
   const {step} = project;
   const current = steps[step];
+  const dimensionInputs = dims ?? {width:String(project.size.width),height:String(project.size.height)};
+  const enteredSize = {width:Number(dimensionInputs.width),height:Number(dimensionInputs.height)};
+  const sizeIsValid = validSize(enteredSize);
+  const orientation = aspectClass(enteredSize);
+  const chooseSize = (size: Size) => { setDims(undefined);setCustom(false);setError('');update({size}); };
+  const showCustom = custom || ![...landscapePresets,...standPresets].some(size => size.width===project.size.width && size.height===project.size.height);
+  const sizeChoices = (sizes: Size[]) => sizes.map(size => {
+    const selected = !showCustom && size.width===project.size.width && size.height===project.size.height;
+    const ratio = size.width/size.height;
+    return <button key={formatSize(size)} className={'size-choice '+(selected?'active':'')} aria-pressed={selected} onClick={() => chooseSize(size)}><span aria-hidden="true" style={{width:Math.min(57,35*ratio),aspectRatio:ratio}}/>{formatSize(size)}</button>;
+  });
   const go = (next: number) => { setError(''); update({step:next}); void save(); window.scrollTo({top:0}); };
   async function next() {
     setError('');
     if (step === 0 && (!project.name.trim() || !project.headline.trim())) return setError('Isi nama proyek dan judul banner untuk melanjutkan.');
-    if (step === 1 && !validSize(project.size)) return setError('Masukkan ukuran 10–1.000 cm dengan rasio lebar banding tinggi antara 0,5 dan 6.');
+    if (step === 1) {
+      if (!sizeIsValid) return setError(sizeHelp);
+      update({size:enteredSize});
+    }
     if (step === 2 && (!project.graduates.length || project.graduates.some(person => !person.name.trim() || !person.original))) return setError('Isi nama dan unggah satu foto untuk setiap wisudawan.');
     if (step === 3) {
       const seed = project.designs.length ? project.seed+1 : project.seed;
       setBusy(true);
       const designs = await generateInBrowser({...project,seed}).finally(()=>setBusy(false));
-      if (designs.length < 3) return setError('Tiga desain belum dapat disusun. Coba ukuran yang lebih lebar atau perpendek judul.');
+      if (designs.length < 3) return setError('Tiga desain belum dapat disusun. Periksa panjang judul dan nama wisudawan.');
       update({designs,seed,selected:designs[0].id,thumbnail:undefined});
     }
     go(step+1);
@@ -56,9 +70,6 @@ export function Wizard({project}: {project:Project}) {
     setBusy(true);setError('');
     try {update({logo:await readPhoto(file)});} catch(error){setError((error as Error).message);} finally {setBusy(false);}
   }
-  const dimensionInputs = dims ?? {width:String(project.size.width),height:String(project.size.height)};
-  const chooseSize = (size: Size) => { setDims(undefined);setCustom(false);update({size}); };
-  const showCustom = custom || !presets.some(size => size.width===project.size.width && size.height===project.size.height);
   return <main className="studio-inner wizard">
     <Link href="/projects" className="text-link wizard-back"><ArrowLeft size={15}/> Proyek Saya</Link>
     <div className="wizard-layout">
@@ -72,14 +83,32 @@ export function Wizard({project}: {project:Project}) {
           <div className="logo-field"><input hidden type="file" accept="image/jpeg,image/png,image/webp" ref={logoInput} onChange={event => {void uploadLogo(event.target.files?.[0]);event.target.value='';}}/>{project.logo && <img src={project.logo.src} alt="Logo kampus"/>}<Button disabled={busy} onClick={() => logoInput.current?.click()}><Upload size={16}/>{project.logo?'Ganti logo kampus':'Unggah logo kampus'}</Button>{project.logo && <IconButton label="Hapus logo" onClick={() => update({logo:undefined})}><Trash2 size={16}/></IconButton>}</div>
         </div>}
         {step===1 && <div className="wizard-panel">
-          <div className="size-grid">{presets.map(size => <button key={size.width+'x'+size.height} className={'size-choice '+(!showCustom && size.width===project.size.width&&size.height===project.size.height?'active':'')} onClick={() => chooseSize(size)}><span style={{aspectRatio:size.width/size.height}}/>{size.width} × {size.height} cm</button>)}<button className={'size-choice '+(showCustom?'active':'')} onClick={() => setCustom(true)}><Ruler size={23}/> Ukuran custom</button></div>
-          {showCustom && <div className="field-grid">{(['width','height'] as const).map(key => <Field key={key} label={key==='width'?'Lebar (cm)':'Tinggi (cm)'} value={dimensionInputs[key]} type="number" onChange={value => { const next={...dimensionInputs,[key]:value};setDims(next);if (validSize({width:+next.width,height:+next.height})) update({size:{width:+next.width,height:+next.height}}); }} />)}</div>}
-          <div className="size-preview"><div style={{width:`min(86%, ${180*project.size.width/project.size.height}px)`,aspectRatio:project.size.width/project.size.height}}><Ruler size={21}/><b>{project.size.width} × {project.size.height} cm</b></div></div>
+          <section className="size-preset-group" aria-labelledby="landscape-sizes">
+            <h2 id="landscape-sizes">Banner Horizontal</h2>
+            <div className="size-grid">{sizeChoices(landscapePresets)}</div>
+          </section>
+          <section className="size-preset-group" aria-labelledby="stand-sizes">
+            <div><h2 id="stand-sizes">Stand Banner / Vertikal</h2><p>Cocok untuk banner wisuda berdiri.</p></div>
+            <div className="size-grid">{sizeChoices(standPresets)}</div>
+          </section>
+          <Button className="size-custom-button" aria-pressed={showCustom} onClick={() => setCustom(true)}><Ruler size={17}/> Ukuran custom</Button>
+          {showCustom && <div className="field-grid">{(['width','height'] as const).map(key => <Field key={key} label={key==='width'?'Lebar (cm)':'Tinggi (cm)'} value={dimensionInputs[key]} type="number" step="any" onChange={value => {
+            const next={...dimensionInputs,[key]:value};
+            setDims(next);
+            const size={width:Number(next.width),height:Number(next.height)};
+            if (validSize(size)) update({size});
+          }}/>)}</div>}
+          <div className="size-preview">
+            {sizeIsValid ? <>
+              <div className="size-preview-shape" aria-hidden="true" style={{width:`min(86%, ${180*enteredSize.width/enteredSize.height}px)`,aspectRatio:`${enteredSize.width} / ${enteredSize.height}`}}/>
+              <p><strong>{formatSize(enteredSize)}</strong><span>{orientation==='portrait'?'Stand Banner / Vertikal':orientation==='square'?'Persegi':'Horizontal'}</span></p>
+            </> : <p role="status">{sizeHelp}</p>}
+          </div>
         </div>}
         {step===2 && <Graduates project={project} onError={setError} onUploadBusy={setUploadBusy}/>}
-        {step===3 && <div className="theme-grid">{themes.map(theme => <button key={theme.id} className={'theme-choice '+(theme.id===project.theme?'active':'')} aria-pressed={theme.id===project.theme} onClick={() => update({theme:theme.id})}><BannerArt id={theme.id}/><div><b>{theme.name}</b>{theme.id===project.theme && <Check size={17}/>}<p>{theme.description}</p></div></button>)}</div>}
+        {step===3 && <div className="theme-grid">{themes.map(theme => <button key={theme.id} className={'theme-choice '+(theme.id===project.theme?'active':'')} aria-pressed={theme.id===project.theme} onClick={() => update({theme:theme.id})}><BannerArt id={theme.id} standSize={aspectClass(project.size)==='portrait' ? project.size : undefined}/><div><b>{theme.name}</b>{theme.id===project.theme && <Check size={17}/>}<p>{theme.description}</p></div></button>)}</div>}
         {error && <Notice error>{error}</Notice>}
-        <StepActions onBack={step>0?() => go(step-1):undefined} onNext={() => void next()} next={step===3?'Buat 3 variasi desain':'Lanjutkan'} disabled={busy || uploadBusy || (step===1 && !!dims && !validSize({width:+dims.width,height:+dims.height})) || (step===2 && project.graduates.some(person => person.status==='processing'))}/>
+        <StepActions onBack={step>0?() => go(step-1):undefined} onNext={() => void next()} next={step===3?'Buat 3 variasi desain':'Lanjutkan'} disabled={busy || uploadBusy || (step===1 && !sizeIsValid) || (step===2 && project.graduates.some(person => person.status==='processing'))}/>
       </div>
     </div>
   </main>;

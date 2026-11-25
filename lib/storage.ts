@@ -1,7 +1,8 @@
 import { openDB, wrap, type DBSchema, type IDBPDatabase } from 'idb';
 import { z } from 'zod';
 import { brandId } from './brand';
-import { validSize } from './export-math';
+import { MAX_LAYOUT_SIDE, validSize } from './banner-size';
+import { strategies } from './types';
 import type { Project } from './types';
 
 interface LegacyDatabase extends DBSchema { projects: { key: string; value: Project }; }
@@ -87,12 +88,12 @@ const graduate = z.object({
   status:z.enum(['idle','processing','ready','error']),error:z.string().optional(),
 });
 const theme = z.enum(['newspaper','gaming','scrapbook','cinematic','elegant','meme']);
-const strategy = z.enum(['symmetry','pyramid','staggered','editorial','collage','cinematic','rows','hero']);
+const strategy = z.enum(strategies);
 const color = z.string().regex(/^(#[\da-f]{3,8}|transparent)$/i);
 const bounds = {x:z.number(),y:z.number(),w:z.number().positive(),h:z.number().positive()};
 const node = z.discriminatedUnion('kind',[
   z.object({...bounds,kind:z.literal('text'),text:z.string(),font:z.string(),fontSize:z.number().positive(),weight:z.string(),color,align:z.enum(['left','center','right']),spacing:z.number().optional(),graduateId:z.string().uuid().optional()}),
-  z.object({...bounds,kind:z.literal('shape'),shape:z.enum(['rect','ellipse','star','diamond','bubble']),fill:color,stroke:color.optional(),rotation:z.number().optional()}),
+  z.object({...bounds,kind:z.literal('shape'),shape:z.enum(['rect','ellipse','star','diamond','bubble']),fill:color,stroke:color.optional(),rotation:z.number().optional(),opacity:z.number().min(0).max(1).optional()}),
   z.object({...bounds,kind:z.literal('portrait'),graduateId:z.string().uuid(),rotation:z.number(),frame:color,monochrome:z.boolean().optional()}),
   z.object({...bounds,kind:z.literal('logo')}),
 ]);
@@ -109,7 +110,7 @@ function safeCanvas(value: unknown, depth=0): boolean {
   });
 }
 const design = z.object({
-  id:z.string(),theme,seed:z.number(),strategy,dimensions:z.object({width:z.number().int().min(1).max(1200),height:z.number().int().min(1).max(1200)}),
+  id:z.string(),theme,seed:z.number(),strategy,dimensions:z.object({width:z.number().min(1).max(MAX_LAYOUT_SIDE),height:z.number().min(1).max(MAX_LAYOUT_SIDE)}),
   size,palette:z.object({bg:color,ink:color,accent:color,soft:color}),label:z.string(),score:z.number(),nodes:z.array(node).max(1500),
   favorite:z.boolean().optional(),canvas:z.record(z.string(),z.unknown()).refine(value => Array.isArray(value.objects) && safeCanvas(value)).optional(),
 });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { strategies } from './types';
 
 const hex = z.string().regex(/^#[0-9a-f]{6}$/i);
 
@@ -6,7 +7,7 @@ export const customDesignSpec = z.strictObject({
   theme:z.enum(['newspaper','gaming','scrapbook','cinematic','elegant','meme']),
   headline:z.string().trim().min(1).max(150),
   palette:z.tuple([hex,hex,hex,hex]),
-  layout:z.enum(['symmetry','pyramid','staggered','editorial','collage','cinematic','rows','hero']),
+  layout:z.enum(strategies),
 });
 export type CustomDesignSpec = z.infer<typeof customDesignSpec>;
 

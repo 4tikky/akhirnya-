@@ -2,6 +2,7 @@
 
 import { ArrowLeft, ArrowRight, Columns2, Download, Heart, ImageOff, Layers3, Maximize2, Pencil, RefreshCw, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { aspectClass, formatSize } from '@/lib/banner-size';
 import { previewDesign } from '@/lib/canvas';
 import { generateInBrowser } from '@/lib/layout';
 import { useStudio } from '@/lib/studio-store';
@@ -10,6 +11,9 @@ import { ExportDialog } from './export-dialog';
 import { Button, Dialog, IconButton, Notice } from './site';
 
 const labels: Record<Strategy,string> = {
+  'portrait-centered':'Vertikal terpusat','portrait-stack':'Susun vertikal','portrait-editorial':'Editorial vertikal',
+  'portrait-collage':'Kolase vertikal','portrait-staggered':'Susun berselang','portrait-hero':'Potret utama',
+  'portrait-blocks':'Blok vertikal','portrait-newspaper':'Koran vertikal','portrait-cinematic':'Poster film vertikal',
   symmetry:'Simetris',pyramid:'Piramida',staggered:'Bertingkat',editorial:'Editorial',collage:'Kolase',cinematic:'Sinematik',rows:'Multibaris',hero:'Fokus utama',
 };
 
@@ -25,7 +29,8 @@ export function DesignPreview({design,project,width=720,onReady}: {design:Design
     // Only visual project fields affect an already generated design.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[design,graduates,logo,width]);
-  return <div className="design-preview" style={{aspectRatio:design.dimensions.width/design.dimensions.height}}>
+  const ratio = design.dimensions.width/design.dimensions.height;
+  return <div className="design-preview" style={{aspectRatio:ratio,width:`min(100%, ${71*ratio}vh)`}}>
     {result?.key===design && result.src ? <img alt={`Pratinjau desain ${design.label}`} src={result.src}/> : result?.key===design && result.error ? <span><ImageOff size={22}/> Pratinjau tidak dapat ditampilkan</span> : <span role="status"><Layers3 size={23}/> Merender pratinjau…</span>}
   </div>;
 }
@@ -51,7 +56,7 @@ export function Results({project}: {project:Project}) {
     setError('');setCompare([]);setFilter(false);update({designs:[...generated,...keep],seed,selected:generated[0].id,thumbnail:undefined});void save();
   }
   return <main className="studio-inner results-page"><Button variant="ghost" onClick={()=>{update({step:3});void save();}}><ArrowLeft size={17}/> Kembali ke gaya</Button>
-    <div className="section-head gallery-head"><div><span className="kicker"><Sparkles size={16}/> HASIL DESAIN</span><h1>Akhirnya <em>jadi!</em></h1><p>{project.name} · {project.graduates.length} wisudawan · {project.size.width} × {project.size.height} cm</p></div><Button variant="primary" onClick={()=>void regenerate()} disabled={generating}><RefreshCw size={17}/> {generating?'Lagi nyusun kenangan jadi karya…':'Coba vibes lain'}</Button></div>
+    <div className="section-head gallery-head"><div><span className="kicker"><Sparkles size={16}/> HASIL DESAIN</span><h1>Akhirnya <em>jadi!</em></h1><p>{project.name} · {project.graduates.length} wisudawan · {formatSize(project.size)}{aspectClass(project.size)==='portrait' && ' · Stand Banner / Vertikal'}</p></div><Button variant="primary" onClick={()=>void regenerate()} disabled={generating}><RefreshCw size={17}/> {generating?'Lagi nyusun kenangan jadi karya…':'Coba vibes lain'}</Button></div>
     {error && <Notice error>{error}</Notice>}
     <div className="result-controls"><div className="segmented"><button aria-pressed={!filter} onClick={()=>setFilter(false)}>Semua desain</button><button aria-pressed={filter} onClick={()=>setFilter(true)}>Favorit</button></div><Button onClick={()=>setComparing(true)} disabled={compare.length<2}><Columns2 size={17}/> Bandingkan ({compare.length})</Button></div>
     {!designs.length && <div className="empty-projects">Belum ada desain favorit.</div>}

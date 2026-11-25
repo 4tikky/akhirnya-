@@ -1,8 +1,10 @@
 import { customDesignSpec, type CustomDesignSpec } from './ai-design';
+import { aspectClass, validSize } from './banner-size';
+import { addPortraitComposition, type AddLayoutText } from './portrait-layout';
 import { loadDesignFonts } from './design-fonts';
 import { activePhoto, portraitCrop } from './photos';
 import { getTheme } from './themes';
-import type { Bounds, Color, Design, DesignNode, Project, ShapeNode, Size, Strategy, TextNode } from './types';
+import { isPortraitStrategy, type Bounds, type Color, type Design, type DesignNode, type Project, type ShapeNode, type Size, type Strategy, type TextNode } from './types';
 
 export type Measure = (text: string, font: string, size: number, weight: string) => number;
 const estimate: Measure = (text, _, size) => [...text].reduce((width, char) => width + (/[MW@]/.test(char) ? .9 : /[il., ]/.test(char) ? .3 : .64), 0) * size;
@@ -45,11 +47,15 @@ function random(seed: number) {
 }
 
 export function canvasSize(size: Size): Size {
-  const scale = 1200 / Math.max(size.width, size.height);
-  return { width: Math.round(size.width * scale), height: Math.round(size.height * scale) };
+  const longest = Math.max(size.width,size.height);
+  if (aspectClass(size)==='portrait') {
+    const ratio = size.width/size.height;
+    return ratio >= .2 ? {width:1200*ratio,height:1200} : {width:240,height:240/ratio};
+  }
+  return {width:1200*(size.width/longest),height:1200*(size.height/longest)};
 }
 
-function decorations(texture: string, width: number, height: number, palette: Color, rng: () => number) {
+function decorations(texture: string, width: number, height: number, palette: Color, rng: () => number, portrait: boolean) {
   const nodes: ShapeNode[] = [];
   const add = (shape: ShapeNode['shape'], x: number, y: number, w: number, h: number, fill: string, stroke?: string, rotation?: number) =>
     nodes.push({ kind:'shape', shape, x, y, w, h, fill, stroke, rotation });
@@ -65,7 +71,7 @@ function decorations(texture: string, width: number, height: number, palette: Co
       }
     }
   }
-  if (texture === 'film' || texture === 'burst') {
+  if ((texture === 'film' && !portrait) || texture === 'burst') {
     const side = Math.min(width,height)*.88;
     add(texture === 'film' ? 'ellipse' : 'diamond', (width-side)/2,(height-side)/2,side,side,palette.soft);
     add('ellipse',10,10,side*.44,side*.44,palette.soft);
@@ -88,9 +94,9 @@ function distribute(total: number, rows: number, strategy: Strategy) {
   return counts;
 }
 
-function rowCount(total: number, area: Bounds, strategy: Strategy) {
+function rowCount(total: number, area: Bounds, strategy: Strategy, square: boolean) {
   if (total === 1) return 1;
-  const forced = strategy === 'rows' && total > 2 ? 2 : 1;
+  const forced = (strategy === 'rows' || square) && total > 2 ? 2 : 1;
   const minimum = total > 8 ? 2 : forced;
   let best = { rows:minimum, value:0 };
   for (let rows=minimum; rows<=Math.min(6,total); rows++) {
@@ -114,7 +120,8 @@ const inside = (a: Bounds, size: Size) => a.x >= -.01 && a.y >= -.01 && a.x+a.w 
 const overlap = (a: Bounds, b: Bounds) => a.x < b.x+b.w-.4 && b.x < a.x+a.w-.4 && a.y < b.y+b.h-.4 && b.y < a.y+a.h-.4;
 export const scoreWeights = { readability: 30, area: 21, balance: 12, consistency: 10, alignment: 10, spacing: 9, faceVisibility: 8 };
 
-export function scoreLayout(nodes: DesignNode[], size: Size, project: Project, weights = scoreWeights) {
+export function scoreLayout(nodes: DesignNode[], size: Size, project: Project, weights = scoreWeights, strategy?: Strategy) {
+  if (strategy && isPortraitStrategy(strategy)!==(aspectClass(project.size)==='portrait')) return -1;
   const content = nodes.filter(node => node.kind !== 'shape');
   const footprints = content.map(footprint);
   const portraits = nodes.filter(node => node.kind === 'portrait');
@@ -151,13 +158,17 @@ export function generateFromSpec(project: Project, specification: unknown, measu
 }
 
 export function generateDesigns(project: Project, measure: Measure = estimate, spec?: CustomDesignSpec): Design[] {
-  if (!project.graduates.length || project.graduates.length > 20) return [];
+  if (!validSize(project.size) || !project.graduates.length || project.graduates.length > 20) return [];
   const theme = getTheme(project.theme);
   const dimensions = canvasSize(project.size);
   const {width,height} = dimensions;
   const short = Math.min(width,height);
   const margin = theme.margin * short + 12;
-  const layoutOptions = [...new Set([...(spec ? [spec.layout] : []),...theme.layout,'symmetry','rows'] as Strategy[])];
+  const orientation = aspectClass(project.size);
+  const portrait = orientation==='portrait';
+  const themeStrategies: Strategy[] = portrait ? theme.standLayout : [...theme.layout,'symmetry','rows'];
+  const override = spec && isPortraitStrategy(spec.layout)===portrait ? [spec.layout] : [];
+  const layoutOptions = [...new Set([...override,...themeStrategies])];
   const palettes = spec ? [{bg:spec.palette[0],ink:spec.palette[1],accent:spec.palette[2],soft:spec.palette[3]},...theme.palettes] : theme.palettes;
   const candidates: Design[] = [];
   for (let paletteIndex=0; paletteIndex<palettes.length; paletteIndex++) {
@@ -165,62 +176,68 @@ export function generateDesigns(project: Project, measure: Measure = estimate, s
       const seed = project.seed*977 + paletteIndex*179 + layoutIndex*17 + 161;
       const rng = random(seed);
       const palette = palettes[(paletteIndex + (spec ? 0 : project.seed)) % palettes.length];
-      const nodes: DesignNode[] = decorations(theme.texture,width,height,palette,rng);
-      const sideTitle = ['editorial','hero'].includes(strategy) && width/height >= 1.3 && project.graduates.length <= (theme.id === 'newspaper' ? 6 : 4);
-      const titleBelow = !sideTitle && theme.id === 'cinematic' && strategy !== 'rows';
-      const kickerH = Math.max(12,short*.052);
-      const footerH = Math.max(12,short*.057);
-      const titleH = sideTitle ? (height-margin*2)*.55 : short*(theme.id === 'cinematic' ? .19 : .17);
-      const caption = [project.university, project.faculty, project.major].filter(Boolean).join('  /  ');
-      const details = [project.tagline, project.date, project.year].filter(Boolean).join('  •  ');
+      const nodes: DesignNode[] = decorations(theme.texture,width,height,palette,rng,portrait);
       const titleColor = ['gaming','cinematic'].includes(theme.id) ? palette.accent : palette.ink;
-      const addText = (value: string, bounds: Bounds, role: 'title' | 'body' | 'name', size: number, align: TextNode['align'] = 'center', graduateId?:string) => {
+      const addText: AddLayoutText = (value,bounds,role,size,align='center',graduateId) => {
         if (!value) return;
         nodes.push({...textNode(value,bounds,role === 'title' ? theme.headline : theme.body,role === 'title' ? theme.weight : role === 'name' ? '700' : '500',role === 'title' ? titleColor : palette.ink,size,measure,align),graduateId});
       };
-      const titleWidth = sideTitle ? (width-margin*3)*.37 : width-margin*2;
-      const titleY = sideTitle ? (height-titleH)/2 : titleBelow ? height-margin-footerH-titleH : margin+kickerH;
-      const logoSize = project.logo ? Math.min(33,kickerH*.9) : 0;
-      if (project.logo) nodes.push({kind:'logo', x:margin,y:margin,w:logoSize,h:logoSize});
-      addText(caption || theme.kicker, {x:margin+logoSize+(logoSize ? 5 : 0), y:sideTitle ? titleY-kickerH : margin,w:titleWidth-logoSize-(logoSize ? 5 : 0),h:kickerH},'body',kickerH*.48,sideTitle ? 'left':'center');
-      addText(project.headline, {x:margin,y:titleY,w:titleWidth,h:titleH},'title',short*(sideTitle ? .135 : .15),sideTitle ? 'left':'center');
-      addText(details || 'SELAMAT WISUDA!', {x:margin,y:height-margin-footerH,w:width-margin*2,h:footerH},'body',footerH*.51);
-      const top = sideTitle || titleBelow ? margin+kickerH : margin+kickerH+titleH+short*.016;
-      const left = sideTitle ? margin*1.75+titleWidth : margin;
-      const area = { x:left,y:top,w:width-left-margin,h:(titleBelow ? titleY : height-margin-footerH)-top-short*.012 };
-      const counts = distribute(project.graduates.length,rowCount(project.graduates.length,area,strategy),strategy);
-      const rowHeight = area.h/counts.length;
-      const longLabels = project.graduates.some(person => person.name.length+person.degree.length>85);
-      let index = 0;
-      for (const [row,count] of counts.entries()) {
-        const widthLimit = area.w / Math.max(...counts);
-        const cellWidth = Math.min(widthLimit, rowHeight*(longLabels ? 2.3 : count <= 2 && counts.length === 1 ? 1.44 : 1.22));
-        const rowX = area.x + (area.w-cellWidth*count)/2;
-        for (let col=0; col<count; col++,index++) {
-          const person = project.graduates[index];
-          const x = rowX+cellWidth*col;
-          const y = area.y+rowHeight*row;
-          const offset = ['pyramid','cinematic'].includes(strategy) ? Math.abs(col-(count-1)/2)/Math.max(1,count-1)*.20 : ['staggered','collage'].includes(strategy) ? (col%2)*.09 : 0;
-          const emphasis = strategy === 'cinematic' && offset === 0 ? .99 : .95;
-          const nameTop = longLabels ? .69 : .776;
-          const nameH = rowHeight*(longLabels ? .30 : person.quote ? .22 : .18);
-          const portraitH = rowHeight*((longLabels ? .61 : strategy === 'collage' ? .68 : .72)-offset);
-          const treatment = theme.portrait;
-          const portraitW = Math.min(cellWidth*.84*emphasis, person.original && person.original.width/person.original.height > 1.15 ? portraitH*1.28 : portraitH*.99);
-          nodes.push({kind:'portrait', x:x+(cellWidth-portraitW)/2, y:y+rowHeight*(.032+offset),w:portraitW,h:portraitH,
-            graduateId:person.id, rotation:strategy === 'collage' ? (col%2 ? 1 : -1)*(1+rng()*1.2) : 0,
-            frame:treatment === 'frame' ? palette.soft : treatment === 'mono' ? palette.ink : 'transparent',monochrome:treatment === 'mono'});
-          addText([person.name,person.degree].filter(Boolean).join(', '),{x:x+cellWidth*.036,y:y+rowHeight*nameTop,w:cellWidth*.928,h:nameH},'name',Math.min(short*.035,rowHeight*.118),'center',person.id);
-          if (person.quote && counts.length < 3 && !longLabels) {
-            const last = nodes.at(-1);
-            if (last?.kind === 'text') last.h = rowHeight*.13;
-            addText(person.quote,{x:x+cellWidth*.035,y:y+rowHeight*.917,w:cellWidth*.93,h:rowHeight*.077},'body',rowHeight*.05);
-            if (last?.kind === 'text' && last.text.split('\n').length*last.fontSize*1.2 > last.h) last.fontSize = last.h/(last.text.split('\n').length*1.2);
+      if (isPortraitStrategy(strategy)) {
+        addPortraitComposition(nodes,project,theme,palette,dimensions,strategy,addText,rng);
+      } else {
+        const sideTitle = ['editorial','hero'].includes(strategy) && width/height >= 1.3 && project.graduates.length <= (theme.id === 'newspaper' ? 6 : 4);
+        const titleBelow = !sideTitle && theme.id === 'cinematic' && strategy !== 'rows';
+        const kickerH = Math.max(12,short*.052);
+        const footerH = Math.max(12,short*.057);
+        const titleH = sideTitle ? (height-margin*2)*.55 : short*(theme.id === 'cinematic' ? .19 : .17);
+        const caption = [project.university, project.faculty, project.major].filter(Boolean).join('  /  ');
+        const details = [project.tagline, project.date, project.year].filter(Boolean).join('  •  ');
+        const titleWidth = sideTitle ? (width-margin*3)*.37 : width-margin*2;
+        const titleY = sideTitle ? (height-titleH)/2 : titleBelow ? height-margin-footerH-titleH : margin+kickerH;
+        const logoSize = project.logo ? Math.min(33,kickerH*.9) : 0;
+        if (project.logo) nodes.push({kind:'logo', x:margin,y:margin,w:logoSize,h:logoSize});
+        addText(caption || theme.kicker, {x:margin+logoSize+(logoSize ? 5 : 0), y:sideTitle ? titleY-kickerH : margin,w:titleWidth-logoSize-(logoSize ? 5 : 0),h:kickerH},'body',kickerH*.48,sideTitle ? 'left':'center');
+        addText(project.headline, {x:margin,y:titleY,w:titleWidth,h:titleH},'title',short*(sideTitle ? .135 : .15),sideTitle ? 'left':'center');
+        addText(details || 'SELAMAT WISUDA!', {x:margin,y:height-margin-footerH,w:width-margin*2,h:footerH},'body',footerH*.51);
+        const top = sideTitle || titleBelow ? margin+kickerH : margin+kickerH+titleH+short*.016;
+        const left = sideTitle ? margin*1.75+titleWidth : margin;
+        const area = { x:left,y:top,w:width-left-margin,h:(titleBelow ? titleY : height-margin-footerH)-top-short*.012 };
+        const counts = distribute(project.graduates.length,rowCount(project.graduates.length,area,strategy,orientation==='square'),strategy);
+        const rowHeight = area.h/counts.length;
+        const longLabels = project.graduates.some(person => person.name.length+person.degree.length>85);
+        let index = 0;
+        for (const [row,count] of counts.entries()) {
+          const widthLimit = area.w / Math.max(...counts);
+          const cellWidth = Math.min(widthLimit, rowHeight*(longLabels ? 2.3 : count <= 2 && counts.length === 1 ? 1.44 : 1.22));
+          const rowX = area.x + (area.w-cellWidth*count)/2;
+          for (let col=0; col<count; col++,index++) {
+            const person = project.graduates[index];
+            const x = rowX+cellWidth*col;
+            const y = area.y+rowHeight*row;
+            const offset = ['pyramid','cinematic'].includes(strategy) ? Math.abs(col-(count-1)/2)/Math.max(1,count-1)*.20 : ['staggered','collage'].includes(strategy) ? (col%2)*.09 : 0;
+            const emphasis = strategy === 'cinematic' && offset === 0 ? .99 : .95;
+            const nameTop = longLabels ? .69 : .776;
+            const nameH = rowHeight*(longLabels ? .30 : person.quote ? .22 : .18);
+            const portraitH = rowHeight*((longLabels ? .61 : strategy === 'collage' ? .68 : .72)-offset);
+            const treatment = theme.portrait;
+            const portraitW = Math.min(cellWidth*.84*emphasis, person.original && person.original.width/person.original.height > 1.15 ? portraitH*1.28 : portraitH*.99);
+            nodes.push({kind:'portrait', x:x+(cellWidth-portraitW)/2, y:y+rowHeight*(.032+offset),w:portraitW,h:portraitH,
+              graduateId:person.id, rotation:strategy === 'collage' ? (col%2 ? 1 : -1)*(1+rng()*1.2) : 0,
+              frame:treatment === 'frame' ? palette.soft : treatment === 'mono' ? palette.ink : 'transparent',monochrome:treatment === 'mono'});
+            addText([person.name,person.degree].filter(Boolean).join(', '),{x:x+cellWidth*.036,y:y+rowHeight*nameTop,w:cellWidth*.928,h:nameH},'name',Math.min(short*.035,rowHeight*.118),'center',person.id);
+            if (person.quote && counts.length < 3 && !longLabels) {
+              const last = nodes.at(-1);
+              if (last?.kind === 'text') last.h = rowHeight*.13;
+              addText(person.quote,{x:x+cellWidth*.035,y:y+rowHeight*.917,w:cellWidth*.93,h:rowHeight*.077},'body',rowHeight*.05);
+              if (last?.kind === 'text' && last.text.split('\n').length*last.fontSize*1.2 > last.h) last.fontSize = last.h/(last.text.split('\n').length*1.2);
+            }
           }
         }
       }
-      const score = scoreLayout(nodes,dimensions,project);
-      if (score >= 0) candidates.push({ id:`${project.id}-${seed}`,theme:theme.id,seed,strategy,dimensions,size:project.size,palette,label:theme.name,score:score+(spec ? (strategy===spec.layout ? 8 : 0)+(paletteIndex===0 ? 18 : 0) : 0),nodes });
+      const score = scoreLayout(nodes,dimensions,project,scoreWeights,strategy);
+      const styleIndex = themeStrategies.indexOf(strategy);
+      const stylePriority = portrait && styleIndex >= 0 ? Math.max(0,12-6*styleIndex) : 0;
+      if (score >= 0) candidates.push({ id:`${project.id}-${seed}`,theme:theme.id,seed,strategy,dimensions,size:project.size,palette,label:theme.name,score:score+stylePriority+(spec ? (strategy===spec.layout ? 8 : 0)+(paletteIndex===0 ? 18 : 0) : 0),nodes });
     }
   }
   const best: Design[] = [];

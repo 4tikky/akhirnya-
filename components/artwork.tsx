@@ -1,11 +1,23 @@
 import type { CSSProperties } from 'react';
 import { getTheme } from '@/lib/themes';
-import type { ThemeId } from '@/lib/types';
+import type { Size, ThemeId } from '@/lib/types';
 
-export function BannerArt({ id }: { id: ThemeId }) {
+export function BannerArt({ id, standSize }: { id: ThemeId; standSize?: Size }) {
   const theme = getTheme(id);
   const palette = theme.palettes[0];
   const style = {'--art-bg':palette.bg,'--art-ink':palette.ink,'--art-accent':palette.accent,'--art-soft':palette.soft} as CSSProperties;
+  if (standSize) {
+    const ratio = standSize.width/standSize.height;
+    return <div className="stand-art-preview"><div className={`banner-art art-${id} art-stand`} role="img" aria-label={`Contoh stand banner ${theme.name}`} style={{...style,aspectRatio:ratio,'--stand-ratio':ratio} as CSSProperties}>
+      <div className="art-border"/>
+      <span className="art-kicker">{theme.kicker}</span>
+      <b className="art-title">{theme.demo}</b>
+      <div className="stand-art-portraits">
+        {['raka','nadia','tiara'].map(name => <div key={name} className="art-person"><img src={`/demo/${name}.webp`} alt="" draggable={false}/><span>{name}</span></div>)}
+      </div>
+      <span className="art-bottom">SELAMAT WISUDA · CLASS OF ’26</span>
+    </div></div>;
+  }
   if (id === 'newspaper') return <div className="banner-art art-newspaper" style={style} role="img" aria-label="Contoh banner The Final Chapter bergaya koran vintage">
     <div className="paper-frame">
       <div className="paper-top"><span>EDISI SPESIAL</span><b>✦</b><span>ANGKATAN ’26</span></div>

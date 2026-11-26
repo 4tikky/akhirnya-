@@ -8,7 +8,11 @@ import { themes } from '@/lib/themes';
 import { BannerArt } from './artwork';
 import { Faq, Footer, Header, IconButton } from './site';
 
-const themeLabels = ['EDITORIAL','GAMING','PASTEL','POSTER FILM','KLASIK','HUMOR'];
+const themeLabels = {
+  adventure:'EKSPEDISI', scrapbook:'ALBUM',picnic:'KULINER',chibi:'KARTUN',gaming:'GAMING',photocard:'KOLEKSI',
+  newspaper:'EDITORIAL',floral:'TAMAN',cinematic:'POSTER FILM',nostalgia:'KENANGAN',elegant:'KLASIK',meme:'HUMOR',
+};
+const heroThemes = ['newspaper','gaming','adventure','scrapbook','picnic','cinematic'].map(id=>themes.find(theme=>theme.id===id)!);
 const steps = [
   {icon:ImagePlus,title:'Kumpulin Foto',text:'Masukkan foto dan nama teman-teman seperjuanganmu.'},
   {icon:Sparkles,title:'Pilih Vibes',text:'Mau aesthetic, elegan, cinematic, atau absurd? Bebas!'},
@@ -24,9 +28,9 @@ const answers: [string,string][] = [
 
 export function Landing() {
   const [slide,setSlide] = useState(0);
-  const current = themes[slide];
+  const current = heroThemes[slide];
   const reducedMotion = useReducedMotion();
-  const change = (offset:number) => setSlide(value => (value+offset+themes.length)%themes.length);
+  const change = (offset:number) => setSlide(value => (value+offset+heroThemes.length)%heroThemes.length);
 
   return <><Header/><main>
     <section className="hero"><div className="site-inner hero-grid">
@@ -44,13 +48,13 @@ export function Landing() {
           <motion.div className="hero-art" key={current.id} initial={reducedMotion?false:{opacity:.55,y:6,rotate:-3}} animate={{opacity:1,y:0,rotate:-4}} transition={{duration:reducedMotion?0:.28}}><BannerArt id={current.id}/></motion.div>
           <div className="floating-label"><span/> {current.name}</div>
         </div>
-        <div className="carousel-controls"><div className="carousel-dots" aria-label="Pilih contoh">{themes.map((theme,index) => <button key={theme.id} aria-label={theme.name} aria-pressed={slide===index} onClick={() => setSlide(index)} />)}</div><div className="carousel-arrows"><IconButton label="Contoh sebelumnya" onClick={() => change(-1)}><ChevronLeft size={18}/></IconButton><IconButton label="Contoh berikutnya" onClick={() => change(1)}><ChevronRight size={18}/></IconButton></div></div>
+        <div className="carousel-controls"><div className="carousel-dots" aria-label="Pilih contoh">{heroThemes.map((theme,index) => <button key={theme.id} aria-label={theme.name} aria-pressed={slide===index} onClick={() => setSlide(index)} />)}</div><div className="carousel-arrows"><IconButton label="Contoh sebelumnya" onClick={() => change(-1)}><ChevronLeft size={18}/></IconButton><IconButton label="Contoh berikutnya" onClick={() => change(1)}><ChevronRight size={18}/></IconButton></div></div>
       </div>
     </div></section>
 
     <section className="inspiration section" id="inspirasi"><div className="site-inner">
       <div className="section-head gallery-head"><div><span className="kicker"><Layers3 size={16}/> INSPIRASI DESAIN</span><h2>Setiap angkatan punya <em>ceritanya.</em></h2><p>Temukan desain yang paling menggambarkan perjalanan kalian.</p></div><Link className="btn btn-secondary" href="/gallery">Lihat Semua Gaya <ArrowUpRight size={17}/></Link></div>
-      <div className="inspiration-grid">{themes.slice(0,3).map((theme,index) => <Link href={`/create?style=${theme.id}`} className="inspiration-card" key={theme.id}><div className="art-thumbnail" style={{background:theme.id==='newspaper'?'#e8ddc7':theme.id==='gaming'?'#272347':'#f5daeb'}}><BannerArt id={theme.id}/></div><div className="style-card-label"><div><span>{themeLabels[index]}</span><h3>{theme.name}</h3></div><ArrowUpRight size={21}/></div></Link>)}</div>
+      <div className="inspiration-grid">{themes.slice(0,3).map((theme) => <Link href={`/create?style=${theme.id}`} className="inspiration-card" key={theme.id}><div className="art-thumbnail" style={{background:theme.palettes[0].soft}}><BannerArt id={theme.id}/></div><div className="style-card-label"><div><span>{themeLabels[theme.id]}</span><h3>{theme.name}</h3></div><ArrowUpRight size={21}/></div></Link>)}</div>
     </div></section>
 
     <section className="section steps-section" id="cara-kerja"><div className="site-inner"><div className="section-head centered"><span className="kicker"><Sparkles size={16}/> CARA KERJA</span><h2>Dari foto jadi banner, <em>segampang itu.</em></h2></div><div className="steps-grid">{steps.map((item,index) => <article key={item.title}><span className={`step-icon step-icon-${index}`}><item.icon size={25}/></span><h3>{item.title}</h3><p>{item.text}</p></article>)}</div></div></section>
@@ -77,5 +81,5 @@ function BeforeAfter() {
 }
 
 export function Gallery() {
-  return <><Header/><main className="site-inner section gallery-page"><Link className="text-link" href="/"><ArrowLeft size={16}/> Beranda</Link><div className="section-head"><span className="kicker"><Layers3 size={16}/> INSPIRASI DESAIN</span><h1>Setiap angkatan punya <em>ceritanya.</em></h1><p>Temukan desain yang paling menggambarkan perjalanan kalian.</p></div><div className="inspiration-grid">{themes.map((theme,index) => <Link href={`/create?style=${theme.id}`} className="inspiration-card" key={theme.id}><div className="art-thumbnail" style={{background:theme.palettes[0].soft}}><BannerArt id={theme.id}/></div><div className="style-card-label"><div><span>{themeLabels[index]}</span><h3>{theme.name}</h3><p>{theme.description}</p></div><ArrowUpRight size={21}/></div></Link>)}</div></main><Footer/></>;
+  return <><Header/><main className="site-inner section gallery-page"><Link className="text-link" href="/"><ArrowLeft size={16}/> Beranda</Link><div className="section-head"><span className="kicker"><Layers3 size={16}/> INSPIRASI DESAIN</span><h1>Setiap angkatan punya <em>ceritanya.</em></h1><p>Temukan desain yang paling menggambarkan perjalanan kalian.</p></div><div className="inspiration-grid">{themes.map((theme) => <Link href={`/create?style=${theme.id}`} className="inspiration-card" key={theme.id}><div className="art-thumbnail" style={{background:theme.palettes[0].soft}}><BannerArt id={theme.id}/></div><div className="style-card-label"><div><span>{themeLabels[theme.id]}</span><h3>{theme.name}</h3><p>{theme.description}</p></div><ArrowUpRight size={21}/></div></Link>)}</div></main><Footer/></>;
 }

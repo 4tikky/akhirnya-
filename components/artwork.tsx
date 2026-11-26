@@ -1,11 +1,30 @@
 import type { CSSProperties } from 'react';
+import { assetSvg } from '@/lib/scenes/assets';
+import { collectionFor } from '@/lib/scenes/catalog';
 import { getTheme } from '@/lib/themes';
 import type { Size, ThemeId } from '@/lib/types';
 
 export function BannerArt({ id, standSize }: { id: ThemeId; standSize?: Size }) {
   const theme = getTheme(id);
-  const palette = theme.palettes[0];
+  const collection=collectionFor(id);
+  const palette = collection?.palettes[0] ?? theme.palettes[0];
   const style = {'--art-bg':palette.bg,'--art-ink':palette.ink,'--art-accent':palette.accent,'--art-soft':palette.soft} as CSSProperties;
+  if (collection && (standSize || !['newspaper','gaming','cinematic'].includes(id))) {
+    const ratio=standSize?standSize.width/standSize.height:1.85;
+    const variant=collection.variants[0];
+    const illustration=(asset:typeof variant.back)=>`data:image/svg+xml,${encodeURIComponent(assetSvg(asset,palette,18))}`;
+    const artwork=<div className={`banner-art collection-art collection-${id} ${standSize?'art-stand':''}`}
+      role="img" aria-label={standSize?`Contoh stand banner ${theme.name}`:`Contoh banner ${theme.name}`}
+      style={{...style,aspectRatio:ratio,'--stand-ratio':ratio} as CSSProperties}>
+      <img className="collection-art-bg" src={illustration(variant.back)} alt=""/>
+      <img className="collection-art-scene" src={illustration(id==='adventure'?'ridge':variant.motif)} alt=""/>
+      <span className="art-kicker">{theme.kicker}</span>
+      <b className="art-title">{theme.demo}</b>
+      <div className="collection-art-people">{['raka','nadia','tiara'].map(name=><span key={name}><img src={`/demo/${name}.webp`} alt=""/></span>)}</div>
+      <img className="collection-art-sticker" src={illustration(variant.stickers[0])} alt=""/>
+    </div>;
+    return standSize?<div className="stand-art-preview">{artwork}</div>:artwork;
+  }
   if (standSize) {
     const ratio = standSize.width/standSize.height;
     return <div className="stand-art-preview"><div className={`banner-art art-${id} art-stand`} role="img" aria-label={`Contoh stand banner ${theme.name}`} style={{...style,aspectRatio:ratio,'--stand-ratio':ratio} as CSSProperties}>

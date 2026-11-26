@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Crop, FileText, ImagePlus, Layers3, LoaderCircle, LockKeyhole, Plus, Ruler, ScanFace, Trash2, Upload, UsersRound } from 'lucide-react';
 import { useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { aspectClass, formatSize, landscapePresets, sizeHelp, standPresets, validSize } from '@/lib/banner-size';
+import { collectionFor } from '@/lib/scenes/catalog';
 import { generateInBrowser } from '@/lib/layout';
 import { activePhoto, readPhoto } from '@/lib/photos';
 import { processPhoto } from '@/lib/process';
@@ -106,7 +107,12 @@ export function Wizard({project}: {project:Project}) {
           </div>
         </div>}
         {step===2 && <Graduates project={project} onError={setError} onUploadBusy={setUploadBusy}/>}
-        {step===3 && <div className="theme-grid">{themes.map(theme => <button key={theme.id} className={'theme-choice '+(theme.id===project.theme?'active':'')} aria-pressed={theme.id===project.theme} onClick={() => update({theme:theme.id})}><BannerArt id={theme.id} standSize={aspectClass(project.size)==='portrait' ? project.size : undefined}/><div><b>{theme.name}</b>{theme.id===project.theme && <Check size={17}/>}<p>{theme.description}</p></div></button>)}</div>}
+        {step===3 && <><div className="theme-grid">{themes.map(theme => <button key={theme.id} className={'theme-choice '+(theme.id===project.theme?'active':'')} aria-pressed={theme.id===project.theme} onClick={() => update({theme:theme.id})}><BannerArt id={theme.id} standSize={aspectClass(project.size)==='portrait' ? project.size : undefined}/><div><b>{theme.name}</b>{theme.id===project.theme && <Check size={17}/>}<p>{theme.description}</p></div></button>)}</div>{collectionFor(project.theme)&&
+          <div className="scene-headline-option">
+            <span>Judul banner <strong>{project.headline}</strong></span>
+            <Button variant="ghost" onClick={()=>update({headline:themes.find(theme=>theme.id===project.theme)!.demo})}>Pakai judul tema</Button>
+          </div>}
+        </>}
         {error && <Notice error>{error}</Notice>}
         <StepActions onBack={step>0?() => go(step-1):undefined} onNext={() => void next()} next={step===3?'Buat 3 variasi desain':'Lanjutkan'} disabled={busy || uploadBusy || (step===1 && !sizeIsValid) || (step===2 && project.graduates.some(person => person.status==='processing'))}/>
       </div>

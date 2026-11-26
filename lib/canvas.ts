@@ -1,6 +1,7 @@
-import { Canvas, Ellipse, FabricImage, FabricObject, Group, Polygon, Rect, StaticCanvas, Textbox } from 'fabric';
+import { Canvas, Ellipse, FabricImage, FabricObject, Group, Path, Polygon, Rect, Shadow, StaticCanvas, Textbox } from 'fabric';
 import { loadDesignFonts } from './design-fonts';
 import type { Design, DesignNode, Project, ShapeNode } from './types';
+import { sceneAsset, scenePortrait } from './scene-canvas';
 import { renderPortrait } from './photos';
 
 export type GradObject = FabricObject & { gradId?: string; label?: string; decorative?: boolean; locked?: boolean };
@@ -20,6 +21,15 @@ export function makeShape(node: ShapeNode) {
 }
 
 async function makeObject(node: DesignNode, project: Project): Promise<GradObject | undefined> {
+  if (node.kind==='art') {
+    const object:GradObject=await sceneAsset(node);
+    object.label=node.label;
+    if (node.layer==='texture' || node.layer==='background') {
+      object.locked=true;
+      object.set({selectable:false,evented:false,hasControls:false});
+    }
+    return object;
+  }
   if (node.kind === 'shape') {
     const shape: GradObject = makeShape(node);
     shape.set({ evented:false, selectable:false });
@@ -28,7 +38,15 @@ async function makeObject(node: DesignNode, project: Project): Promise<GradObjec
     return shape;
   }
   if (node.kind === 'text') {
-    const text: GradObject = new Textbox(node.text,{left:node.x,top:node.y,width:node.w,fontFamily:node.font,fontWeight:node.weight,fontSize:node.fontSize,fill:node.color,textAlign:node.align,lineHeight:1.12,splitByGrapheme:true,charSpacing:node.spacing ?? 0,objectCaching:false});
+    const offset=Math.max(1,node.fontSize*.067);
+    const shadow=node.shadow ? new Shadow({color:node.shadow,offsetX:offset,offsetY:offset,blur:0}) : undefined;
+    const path=node.curve&&!node.text.includes('\n') ? new Path(`M1 ${node.curve}Q${node.w/2} ${-node.curve} ${node.w-1} ${node.curve}`,{visible:false}) : undefined;
+    const text: GradObject = new Textbox(node.text,{
+      left:node.x,top:node.y,width:node.w,fontFamily:node.font,fontWeight:node.weight,fontStyle:node.italic?'italic':'normal',
+      fontSize:node.fontSize,fill:node.color,textAlign:node.align,lineHeight:1.12,splitByGrapheme:false,charSpacing:node.spacing ?? 0,
+      objectCaching:false,stroke:node.stroke,strokeWidth:node.strokeWidth??0,paintFirst:'stroke',shadow,angle:node.rotation??0,path,
+    });
+    if (!path && text.height>node.h) text.set('fontSize',node.fontSize*node.h/text.height*.98);
     text.label = node.text.replaceAll('\n',' ');
     text.gradId = node.graduateId;
     text.top = node.y + Math.max(0,(node.h - text.height)/2);
@@ -44,6 +62,12 @@ async function makeObject(node: DesignNode, project: Project): Promise<GradObjec
   if (node.kind !== 'portrait') return;
   const person = project.graduates.find(item => item.id === node.graduateId);
   if (!person) return;
+  if (node.presentation) {
+    const portrait:GradObject=await scenePortrait(node,person);
+    portrait.label=person.name;
+    portrait.gradId=person.id;
+    return portrait;
+  }
   const src = await renderPortrait(person,node.w/node.h,!!node.monochrome);
   if (!src) throw new Error(`Foto ${person.name} belum tersedia.`);
   const image: GradObject = await FabricImage.fromURL(src);
@@ -91,5 +115,5 @@ export function serializeCanvas(canvas: Canvas | StaticCanvas) {
 
 export function portraitImage(object?: FabricObject): FabricImage | undefined {
   if (object instanceof FabricImage) return object;
-  if (object instanceof Group && (object as GradObject).gradId) return object.getObjects().find((item): item is FabricImage => item instanceof FabricImage);
+  if (object instanceof Group && (object as GradObject).gradId) return [...object.getObjects()].reverse().find((item): item is FabricImage => item instanceof FabricImage);
 }

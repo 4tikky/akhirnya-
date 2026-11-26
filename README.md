@@ -25,7 +25,7 @@ Buka `http://localhost:3000`. Untuk mencoba alur lengkap, pilih **Buat Banner Se
 
 Model dan worker disiapkan otomatis sebelum `dev` dan `build`. File model berasal dari paket npm yang tercatat di lockfile dan disajikan oleh aplikasi. Aplikasi inti tidak memerlukan variabel lingkungan atau kunci API.
 
-Uji browser memakai `/usr/bin/chromium` secara default. Gunakan `CHROMIUM_PATH` untuk lokasi lain atau `AKHIRNYA_URL` bila server memakai alamat selain `http://localhost:3000`. Uji ini memeriksa pemrosesan lokal, galeri, studio, pemulihan sesi, ekspor raster dan dimensi halaman PDF, impor file, dan fallback foto asli. Pengujian tata letak mencakup delapan ukuran kelompok pada enam gaya dan lima rasio.
+Uji browser memakai `/usr/bin/chromium` secara default. Gunakan `CHROMIUM_PATH` untuk lokasi lain atau `AKHIRNYA_URL` bila server memakai alamat selain `http://localhost:3000`. Uji ini memeriksa pemrosesan lokal, galeri, studio, pemulihan sesi, ekspor raster dan dimensi halaman PDF, impor file, dan fallback foto asli. Pengujian tata letak mencakup delapan ukuran kelompok pada dua belas gaya dan lima rasio.
 
 ## Deploy ke Vercel
 
@@ -37,7 +37,19 @@ Proyek disimpan per origin dan per profil browser. Gunakan unduhan `.akhirnya` d
 
 ## Stand banner vertikal
 
-Pada langkah **Ukuran Banner**, pilih **Stand Banner / Vertikal** untuk ukuran 60 × 160, 80 × 180, 85 × 200, atau 100 × 200 cm. Masukkan ukuran lain melalui **Ukuran custom**, termasuk ukuran dengan desimal. Keenam gaya memiliki komposisi vertikal khusus. Ukuran yang dipilih dibawa ke studio dan menjadi ukuran awal ekspor.
+Pada langkah **Ukuran Banner**, pilih **Stand Banner / Vertikal** untuk ukuran 60 × 160, 80 × 180, 85 × 200, atau 100 × 200 cm. Masukkan ukuran lain melalui **Ukuran custom**, termasuk ukuran dengan desimal. Setiap gaya memiliki komposisi vertikal khusus. Ukuran yang dipilih dibawa ke studio dan menjadi ukuran awal ekspor.
+
+## Koleksi ilustrasi
+
+Adventure Mountain, Scrapbook Binder, dan Mukbang Picnic adalah tiga koleksi unggulan. Masing-masing menghasilkan tiga konsep yang berbeda pada latar, pola susunan, tipografi, dan bingkai. Tujuh koleksi tambahan tersedia melalui generator ilustrasi yang sama. Tema Minimalist Elegant dan Funny & Meme juga tetap tersedia.
+
+Ilustrasi di `lib/scenes/vectors.ts` dan `lib/scenes/assets.ts` adalah SVG orisinal yang ditulis untuk proyek ini. Kode tersebut menghasilkan gunung, jalur, hutan, kertas, alat tulis, makanan, kota, karakter, bunga, dan aset tematik lain. Aset ilustrasi tidak mengambil elemen dari waralaba atau desainer eksternal. Font Caveat tersedia lewat Fontsource dengan lisensi SIL OFL. Foto demonstrasi memakai aset sintetis lokal yang sudah termasuk dalam repositori.
+
+`lib/scenes/catalog.ts` memuat resep koleksi, aset, palet, serta pilihan komposisi. `compose.ts` menyesuaikan susunan berdasarkan jumlah wisudawan dan rasio banner. `quality.ts` menilai hierarki, kontras, keseimbangan, dan ruang kosong setelah pemeriksaan kelengkapan dan tumpang tindih. Editor menyimpan ilustrasi sebagai grup vektor, teks sebagai teks editable, dan foto sebagai lapisan terpisah dengan masker. Latar dan tekstur dapat dibuka kuncinya dari panel lapisan.
+
+Foto cutout memakai hasil segmentasi lokal. Komposisi chibi memasang potongan wajah asli pada tubuh ilustrasi jika posisi wajah cocok. Jika data wajah kurang atau pengguna memilih potongan manual, desain memakai bingkai foto biasa. Perbandingan foto masa kecil dan sekarang serta provider AI untuk menghasilkan arah kreatif atau ilustrasi belum diimplementasikan. Koleksi dapat digunakan tanpa akun atau kunci API.
+
+Uji browser merender stand banner 60 × 160 cm dengan 2, 3, 5, 7, 10, dan 15 wisudawan, memeriksa editor, serta mengunduh ekspor PNG 150 DPI. Set `AKHIRNYA_SHOTS=1` saat menjalankan tes untuk menyimpan tangkapan layar di `/tmp`.
 
 ## Arsitektur
 

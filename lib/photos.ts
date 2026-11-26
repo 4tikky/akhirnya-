@@ -84,16 +84,55 @@ export function releasePortraitCache() {
   photoCache = new WeakMap();
 }
 
-export function renderPortrait(person: Graduate, ratio: number, mono: boolean) {
+export function hasCharacterFace(person: Graduate) {
+  const f=person.face;
+  return !!(f && !person.crop && f.w>=.045 && f.h>=.045 && f.x>=0 && f.y>=0 && f.x+f.w<=1 && f.y+f.h<=1);
+}
+
+function faceCrop(photo:Photo,face:Face) {
+  const side=Math.min(photo.width,photo.height,Math.max(face.w*photo.width,face.h*photo.height)*1.63);
+  return {
+    x:Math.max(0,Math.min(photo.width-side,(face.x+face.w/2)*photo.width-side/2)),
+    y:Math.max(0,Math.min(photo.height-side,(face.y+face.h*.45)*photo.height-side/2)),
+    w:side,h:side,
+  };
+}
+
+function subjectCenter(image:HTMLImageElement) {
+  const canvas=document.createElement('canvas');
+  canvas.width=canvas.height=80;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  if (!ctx) return;
+  ctx.drawImage(image,0,0,80,80);
+  const {data}=ctx.getImageData(0,0,80,80);
+  let left=80,right=-1,top=80,bottom=-1,edge=0;
+  for (let y=0;y<80;y++) for (let x=0;x<80;x++) {
+    if (data[(y*80+x)*4+3]<180) continue;
+    left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);
+    if (x===0||x===79||y===0||y===79) edge++;
+  }
+  if (right<=left || bottom<=top || edge>265) return;
+  return {x:(left+right+1)/160,y:(top+bottom+1)/160};
+}
+
+export function renderPortrait(person: Graduate, ratio: number, mono: boolean, faceOnly=false, scene=false) {
   const photo = activePhoto(person);
   if (!photo) return;
   if (!photoCache.has(photo)) photoCache.set(photo,++photoIndex);
-  const key = JSON.stringify([photoCache.get(photo),ratio.toFixed(3),mono,person.crop,person.face,person.adjustments]);
+  const key = JSON.stringify([photoCache.get(photo),ratio.toFixed(3),mono,faceOnly,scene,person.crop,person.face,person.adjustments]);
   const cached = portraits.get(key);
   if (cached) return cached;
   const task = (async () => {
     const source = await loadImage(photo.src);
-    const crop = portraitCrop(photo,ratio,person.face,person.crop);
+    const crop = faceOnly && person.face ? faceCrop(photo,person.face) : portraitCrop(photo,ratio,person.face,person.crop);
+    if (scene && !faceOnly && !person.face && !person.crop) crop.y=(photo.height-crop.h)*.12;
+    if (!faceOnly && !person.face && !person.crop && photo===person.processed) {
+      const subject=subjectCenter(source);
+      if (subject) {
+        crop.x=Math.max(0,Math.min(photo.width-crop.w,subject.x*photo.width-crop.w/2));
+        crop.y=Math.max(0,Math.min(photo.height-crop.h,subject.y*photo.height-crop.h*(scene?.60:.5)));
+      }
+    }
     const scale = Math.min(1,1800/Math.max(crop.w,crop.h));
     const target = document.createElement('canvas');
     target.width = Math.max(1,Math.round(crop.w*scale));

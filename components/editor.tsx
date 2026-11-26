@@ -1,6 +1,6 @@
 'use client';
 
-import { ActiveSelection, Canvas, FabricImage, Group, Textbox, filters, type FabricObject } from 'fabric';
+import { ActiveSelection, Canvas, FabricImage, Group, Shadow, Textbox, filters, type FabricObject } from 'fabric';
 import { ArrowDown, ArrowDownToLine, ArrowLeft, ArrowUp, ArrowUpToLine, Check, Copy, Crop, Download, Eye, EyeOff, Grid2X2, Group as GroupIcon, Hand, Image, ImagePlus, Layers3, LoaderCircle, Lock, Maximize2, MousePointer2, Palette, Plus, Redo2, Save, Shapes, Trash2, Type, Undo2, Ungroup, Unlock } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { aspectClass, formatSize } from '@/lib/banner-size';
@@ -24,7 +24,7 @@ const tabs = [
 ] as const;
 type Tab = typeof tabs[number]['id'];
 type Snapshot = Record<string,unknown>;
-const fontFamilies = [...Object.values(designFonts),'Arial','Arial Black','Courier New','Georgia','Impact','Tahoma','Times New Roman','Trebuchet MS','Verdana'];
+const fontFamilies = [...Object.values(designFonts),'Bricolage Grotesque Variable','Arial','Arial Black','Courier New','Georgia','Impact','Tahoma','Times New Roman','Trebuchet MS','Verdana'];
 const decorations: {shape:ShapeNode['shape'];label:string;symbol:string}[] = [
   {shape:'rect',label:'Persegi',symbol:'▪'},{shape:'ellipse',label:'Lingkaran',symbol:'●'},{shape:'star',label:'Bintang',symbol:'✦'},
   {shape:'diamond',label:'Berlian',symbol:'◆'},{shape:'bubble',label:'Kotak lengkung',symbol:'▰'},
@@ -301,6 +301,15 @@ export function Editor({design,project}: {design:Design;project:Project}) {
       canvas.add(image);canvas.setActiveObject(image);setLayerFocus(undefined);checkpoint();
     } catch {editor.setError('Foto gagal ditambahkan ke kanvas.');}
   }
+  function adaptPhotoEffects(image:FabricImage,oldWidth:number,oldHeight:number) {
+    const mask=image.clipPath;
+    if (mask && oldWidth && oldHeight) {
+      mask.set({scaleX:mask.scaleX*image.width/oldWidth,scaleY:mask.scaleY*image.height/oldHeight});
+    }
+    const group=image.group;
+    const silhouette=group?.getObjects().find(item=>(item as GradObject).label==='Kontur potret');
+    if (group && silhouette) group.remove(silhouette);
+  }
   async function photoFile(file?:File) {
     if (!file) return;
     setReplacing(true);editor.setError('');
@@ -308,8 +317,10 @@ export function Editor({design,project}: {design:Design;project:Project}) {
       const photo=await readPhoto(file);
       if (replace) {
         const {width,height}=replace.getScaledWidth()?{width:replace.getScaledWidth(),height:replace.getScaledHeight()}:{width:160,height:160};
+        const {width:sourceW,height:sourceH}=replace;
         await replace.setSrc(photo.src);
         replace.set({cropX:0,cropY:0,scaleX:width/replace.width,scaleY:height/replace.height});
+        adaptPhotoEffects(replace,sourceW,sourceH);
         replace.setCoords();selection?.set('dirty',true);checkpoint();
       } else await addPhoto(photo.src,file.name);
     } catch (error) {editor.setError(error instanceof Error?error.message:'Foto tidak dapat dimuat.');}
@@ -386,7 +397,9 @@ export function Editor({design,project}: {design:Design;project:Project}) {
     const naturalHeight='naturalHeight' in source ? source.naturalHeight : source.height;
     const width=naturalWidth*(1-value/100),height=naturalHeight*(1-value/100);
     if (!width || !height) return;
+    const {width:sourceW,height:sourceH}=image;
     image.set({cropX:(naturalWidth-width)/2,cropY:(naturalHeight-height)/2,scaleX:image.getScaledWidth()/width,scaleY:image.getScaledHeight()/height,width,height});
+    adaptPhotoEffects(image,sourceW,sourceH);
     selection?.set('dirty',true);checkpoint();setCrop(undefined);
   }
   async function saveNow() {
@@ -439,11 +452,15 @@ export function Editor({design,project}: {design:Design;project:Project}) {
             {selectedText&&<><Field label="Isi teks"><textarea rows={3} value={selectedText.text} onChange={event=>change({text:event.target.value})}/></Field><Field label="Jenis huruf"><select value={selectedText.fontFamily} onChange={event=>change({fontFamily:event.target.value})}>{fontFamilies.map(font=><option key={font}>{font}</option>)}</select></Field>
               <div className="field-grid"><NumberField label="Ukuran" value={selectedText.fontSize} min={3} max={300} onChange={fontSize=>change({fontSize})}/><Field label="Ketebalan"><select value={String(selectedText.fontWeight)} onChange={event=>change({fontWeight:event.target.value})}>{['400','500','600','700','800','850','900'].map(weight=><option key={weight}>{weight}</option>)}</select></Field></div>
               <ColorField label="Warna teks" value={selectedColor} onChange={fill=>change({fill})}/><Field label="Rata teks"><select value={selectedText.textAlign} onChange={event=>change({textAlign:event.target.value})}><option value="left">Kiri</option><option value="center">Tengah</option><option value="right">Kanan</option></select></Field>
+              <ColorField label="Warna kontur teks" value={typeof selectedText.stroke==='string'&&/^#[0-9a-f]{6}$/i.test(selectedText.stroke)?selectedText.stroke:'#fff4db'} onChange={stroke=>change({stroke,strokeWidth:selectedText.strokeWidth||2,paintFirst:'stroke'})}/>
+              <NumberField label="Tebal kontur teks" value={selectedText.strokeWidth} min={0} max={45} step={.25} onChange={strokeWidth=>change({strokeWidth})}/>
+              {selectedText.path && <Button variant="ghost" onClick={()=>change({path:undefined})}>Luruskan teks</Button>}
               <NumberField label="Jarak huruf" value={selectedText.charSpacing} min={-200} max={600} onChange={charSpacing=>change({charSpacing})}/><NumberField label="Tinggi baris" value={selectedText.lineHeight} min={.7} max={4} step={.1} onChange={lineHeight=>change({lineHeight})}/>
             </>}
-            {!selectedText&&!selectedImage&&<><ColorField label="Warna objek" value={selectedColor} onChange={fill=>change({fill})}/><ColorField label="Warna garis" value={typeof selection.stroke==='string'&&selection.stroke.startsWith('#')?selection.stroke:'#30243e'} onChange={stroke=>change({stroke,strokeWidth:selection.strokeWidth||2})}/><NumberField label="Tebal garis" value={selection.strokeWidth} min={0} max={30} onChange={strokeWidth=>change({strokeWidth})}/></>}
+            {!selectedText&&!selectedImage&&!(selection instanceof Group)&&<><ColorField label="Warna objek" value={selectedColor} onChange={fill=>change({fill})}/><ColorField label="Warna garis" value={typeof selection.stroke==='string'&&selection.stroke.startsWith('#')?selection.stroke:'#30243e'} onChange={stroke=>change({stroke,strokeWidth:selection.strokeWidth||2})}/><NumberField label="Tebal garis" value={selection.strokeWidth} min={0} max={30} onChange={strokeWidth=>change({strokeWidth})}/></>}
             <div className="field-grid"><NumberField label="X" value={selection.left} min={-1200} max={2400} onChange={left=>change({left})}/><NumberField label="Y" value={selection.top} min={-1200} max={2400} onChange={top=>change({top})}/><NumberField label="Lebar" value={selection.getScaledWidth()} min={1} max={2400} onChange={value=>change({scaleX:value/Math.max(1,selection.width)})}/><NumberField label="Tinggi" value={selection.getScaledHeight()} min={1} max={2400} onChange={value=>change({scaleY:value/Math.max(1,selection.height)})}/></div>
             <RangeField label="Rotasi" min={-180} max={180} value={((selection.angle+540)%360)-180} onChange={angle=>change({angle})}/>
+            <label className="check-field"><input type="checkbox" checked={!!selection.shadow} onChange={event=>change({shadow:event.target.checked?new Shadow({color:'#38292866',blur:7,offsetX:4,offsetY:5}):null})}/> Bayangan</label>
             <RangeField label="Opasitas" min={0} max={100} value={Math.round(selection.opacity*100)} onChange={value=>change({opacity:value/100})}/>
             {selectedImage&&<><div className="wrap-actions"><Button onClick={()=>setCrop({image:selectedImage,value:0})}><Crop size={15}/> Potong</Button><Button disabled={replacing} onClick={()=>{setReplace(selectedImage);fileInput.current?.click();}}>Ganti foto</Button></div>{(['brightness','contrast','saturation'] as const).map((key,index)=>{const applied=selectedImage.filters.find(filter=>filter.type.toLowerCase()===key) as unknown as Partial<Record<typeof key,number>>|undefined;return <RangeField key={key} label={['Kecerahan','Kontras','Saturasi'][index]} min={-90} max={90} value={Math.round((applied?.[key]??0)*100)} onChange={value=>filterImage(key,value)}/>;})}<label className="check-field"><input type="checkbox" checked={selectedImage.filters.some(filter=>filter.type==='Grayscale')} onChange={event=>filterImage('grayscale',+event.target.checked)}/> Hitam putih</label></>}
           </div>}

@@ -2,6 +2,9 @@ import { customDesignSpec, type CustomDesignSpec } from './ai-design';
 import { aspectClass, validSize } from './banner-size';
 import { addPortraitComposition, type AddLayoutText } from './portrait-layout';
 import { loadDesignFonts } from './design-fonts';
+import { collectionFor } from './scenes/catalog';
+import { composeScene } from './scenes/compose';
+import { scoreScene } from './scenes/quality';
 import { activePhoto, portraitCrop } from './photos';
 import { getTheme } from './themes';
 import { isPortraitStrategy, type Bounds, type Color, type Design, type DesignNode, type Project, type ShapeNode, type Size, type Strategy, type TextNode } from './types';
@@ -122,7 +125,7 @@ export const scoreWeights = { readability: 30, area: 21, balance: 12, consistenc
 
 export function scoreLayout(nodes: DesignNode[], size: Size, project: Project, weights = scoreWeights, strategy?: Strategy) {
   if (strategy && isPortraitStrategy(strategy)!==(aspectClass(project.size)==='portrait')) return -1;
-  const content = nodes.filter(node => node.kind !== 'shape');
+  const content = nodes.filter(node => node.kind !== 'shape' && node.kind !== 'art');
   const footprints = content.map(footprint);
   const portraits = nodes.filter(node => node.kind === 'portrait');
   if (portraits.length !== project.graduates.length ||
@@ -157,10 +160,46 @@ export function generateFromSpec(project: Project, specification: unknown, measu
   return generateDesigns({...project,theme:spec.theme,headline:spec.headline},measure,spec);
 }
 
+function generateCollections(project:Project, dimensions:Size, measure:Measure, spec?:CustomDesignSpec): Design[] | undefined {
+  const collection=collectionFor(project.theme);
+  if (!collection) return;
+  const theme=getTheme(project.theme);
+  const portrait=aspectClass(project.size)==='portrait';
+  const strategies:Strategy[] = portrait ? theme.standLayout : theme.layout;
+  const override=spec && isPortraitStrategy(spec.layout)===portrait ? spec.layout : undefined;
+  const palettes=spec ? [{bg:spec.palette[0],ink:spec.palette[1],accent:spec.palette[2],soft:spec.palette[3]},...collection.palettes] : collection.palettes;
+  const candidates: Design[][] = collection.variants.map((variant,variantIndex)=>{
+    const strategy=(variantIndex===0&&override)||strategies[variantIndex];
+    return palettes.flatMap((palette,paletteIndex)=>{
+      const seed=project.seed*1097+variantIndex*178+paletteIndex*23+181;
+      const nodes:DesignNode[]=[];
+      composeScene(nodes,project,{theme:theme.id,dimensions,palette,seed,variant,texture:collection.texture},(value,bounds,role,size,style={})=>{
+        if (!value) return;
+        const {font=role==='title'?theme.headline:theme.body,weight=role==='title'?theme.weight:'700',color=palette.ink,align='center',...presentation}=style;
+        nodes.push({...textNode(value,bounds,font,weight,color,size,measure,align),...presentation});
+      });
+      const quality=scoreLayout(nodes,dimensions,project,scoreWeights,strategy);
+      const themed=scoreScene(nodes,dimensions,variant,palette);
+      if (quality<0 || themed<0) return [];
+      const preferred=(variantIndex+project.seed)%palettes.length;
+      const score=quality+themed+(paletteIndex===(spec?0:preferred)?8:0);
+      return [{id:`${project.id}-scene-${seed}`,theme:theme.id,seed,strategy,dimensions,size:project.size,palette,label:theme.name,score,nodes,concept:variant.name}];
+    }).sort((a,b)=>b.score-a.score);
+  });
+  const chosen:Design[]=[];
+  for (const options of candidates) {
+    const preferred=options.find(option=>chosen.every(design=>design.palette.bg!==option.palette.bg)) ?? options[0];
+    if (preferred) chosen.push(preferred);
+  }
+  return chosen;
+}
+
 export function generateDesigns(project: Project, measure: Measure = estimate, spec?: CustomDesignSpec): Design[] {
   if (!validSize(project.size) || !project.graduates.length || project.graduates.length > 20) return [];
   const theme = getTheme(project.theme);
   const dimensions = canvasSize(project.size);
+  const themed=generateCollections(project,dimensions,measure,spec);
+  if (themed?.length===3) return themed;
   const {width,height} = dimensions;
   const short = Math.min(width,height);
   const margin = theme.margin * short + 12;
@@ -247,7 +286,7 @@ export function generateDesigns(project: Project, measure: Measure = estimate, s
     if (index < 0) index = sorted.findIndex(design => best.every(other => other.palette.bg !== design.palette.bg));
     best.push(sorted.splice(Math.max(0,index),1)[0]);
   }
-  return best;
+  return themed ? [...themed,...best.filter(fallback=>themed.every(design=>design.strategy!==fallback.strategy||design.palette.bg!==fallback.palette.bg))].slice(0,3) : best;
 }
 
 export async function generateInBrowser(project: Project) {

@@ -6,6 +6,7 @@ import '@fontsource-variable/space-grotesk';
 import '@fontsource-variable/bricolage-grotesque';
 import '@fontsource-variable/fraunces';
 import '@fontsource-variable/fraunces/wght-italic.css';
+import '@fontsource-variable/caveat';
 import './globals.css';
 
 const title = 'Akhirnya! — Bikin Banner Wisuda Otomatis';

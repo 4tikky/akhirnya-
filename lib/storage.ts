@@ -2,7 +2,8 @@ import { openDB, wrap, type DBSchema, type IDBPDatabase } from 'idb';
 import { z } from 'zod';
 import { brandId } from './brand';
 import { MAX_LAYOUT_SIDE, validSize } from './banner-size';
-import { strategies } from './types';
+import { assetIds } from './scenes/assets';
+import { artLayers, portraitStyles, strategies, themeIds } from './types';
 import type { Project } from './types';
 
 interface LegacyDatabase extends DBSchema { projects: { key: string; value: Project }; }
@@ -87,17 +88,19 @@ const graduate = z.object({
   original:photo.optional(),processed:photo.optional(),face:face.optional(),crop:face.optional(),useCutout:z.boolean(),adjustments,
   status:z.enum(['idle','processing','ready','error']),error:z.string().optional(),
 });
-const theme = z.enum(['newspaper','gaming','scrapbook','cinematic','elegant','meme']);
+const theme = z.enum(themeIds);
 const strategy = z.enum(strategies);
 const color = z.string().regex(/^(#[\da-f]{3,8}|transparent)$/i);
+const palette = z.object({bg:color,ink:color,accent:color,soft:color});
 const bounds = {x:z.number(),y:z.number(),w:z.number().positive(),h:z.number().positive()};
 const node = z.discriminatedUnion('kind',[
-  z.object({...bounds,kind:z.literal('text'),text:z.string(),font:z.string(),fontSize:z.number().positive(),weight:z.string(),color,align:z.enum(['left','center','right']),spacing:z.number().optional(),graduateId:z.string().uuid().optional()}),
+  z.object({...bounds,kind:z.literal('text'),text:z.string(),font:z.string(),fontSize:z.number().positive(),weight:z.string(),color,align:z.enum(['left','center','right']),spacing:z.number().optional(),graduateId:z.string().uuid().optional(),stroke:color.optional(),strokeWidth:z.number().min(0).optional(),shadow:color.optional(),rotation:z.number().optional(),italic:z.boolean().optional(),curve:z.number().positive().optional()}),
   z.object({...bounds,kind:z.literal('shape'),shape:z.enum(['rect','ellipse','star','diamond','bubble']),fill:color,stroke:color.optional(),rotation:z.number().optional(),opacity:z.number().min(0).max(1).optional()}),
-  z.object({...bounds,kind:z.literal('portrait'),graduateId:z.string().uuid(),rotation:z.number(),frame:color,monochrome:z.boolean().optional()}),
+  z.object({...bounds,kind:z.literal('portrait'),graduateId:z.string().uuid(),rotation:z.number(),frame:color,monochrome:z.boolean().optional(),presentation:z.enum(portraitStyles).optional(),outline:color.optional(),matte:color.optional()}),
+  z.object({...bounds,kind:z.literal('art'),asset:z.enum(assetIds),layer:z.enum(artLayers),label:z.string(),palette,seed:z.number(),opacity:z.number().min(0).max(1).optional(),rotation:z.number().optional()}),
   z.object({...bounds,kind:z.literal('logo')}),
 ]);
-const allowedTypes = new Set(['rect','ellipse','polygon','textbox','text','i-text','image','group','activeselection','layoutmanager','brightness','contrast','saturation','grayscale','convolute','blendcolor','gamma','composed']);
+const allowedTypes = new Set(['rect','ellipse','polygon','path','circle','line','polyline','shadow','textbox','text','i-text','image','group','activeselection','layoutmanager','brightness','contrast','saturation','grayscale','convolute','blendcolor','gamma','composed']);
 function safeCanvas(value: unknown, depth=0): boolean {
   if (depth > 18) return false;
   if (Array.isArray(value)) return value.length <= 3000 && value.every(item => safeCanvas(item,depth+1));
@@ -111,7 +114,7 @@ function safeCanvas(value: unknown, depth=0): boolean {
 }
 const design = z.object({
   id:z.string(),theme,seed:z.number(),strategy,dimensions:z.object({width:z.number().min(1).max(MAX_LAYOUT_SIDE),height:z.number().min(1).max(MAX_LAYOUT_SIDE)}),
-  size,palette:z.object({bg:color,ink:color,accent:color,soft:color}),label:z.string(),score:z.number(),nodes:z.array(node).max(1500),
+  size,palette,label:z.string(),score:z.number(),concept:z.string().optional(),nodes:z.array(node).max(1500),
   favorite:z.boolean().optional(),canvas:z.record(z.string(),z.unknown()).refine(value => Array.isArray(value.objects) && safeCanvas(value)).optional(),
 });
 const projectSchema = z.object({

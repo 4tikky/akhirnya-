@@ -306,4 +306,62 @@ try {
     console.log(`Stand banner ${sizeLabel} dengan ${count} wisudawan terverifikasi dari wizard hingga ekspor.`);
     await stand.close();
   }
+  for (const {theme,count,title} of [
+    {theme:'Adventure Mountain',count:2,title:'Menuju Puncak Sarjana'},
+    {theme:'Scrapbook Binder',count:3,title:'Cerita Satu Angkatan'},
+    {theme:'Mukbang Picnic',count:5,title:'Mukbang Gelar'},
+    {theme:'Adventure Mountain',count:7,title:'Akhirnya Sampai Puncak'},
+    {theme:'Scrapbook Binder',count:10,title:'Terakhir Kali di Kampus'},
+    {theme:'Mukbang Picnic',count:15,title:'Kenyang Revisi, Akhirnya Wisuda'},
+  ]) {
+    const poster=await browser.newPage({viewport:{width:1440,height:1000},acceptDownloads:true});
+    await poster.goto(base);
+    await create(poster,'60 × 160 cm');
+    const sources=['raka','nadia','tiara','faris'];
+    const uploaded=Array.from({length:count},(_,i)=>`public/demo/${sources[i%sources.length]}.webp`);
+    await poster.locator('input[type=file][multiple]').setInputFiles(uploaded);
+    await poster.getByLabel(`Nama wisudawan ${count} *`).fill('Anindya Ratih Maharani');
+    await poster.getByLabel('Gelar',{exact:true}).nth(count-1).fill('S.Kom.');
+    await poster.getByRole('button',{name:'Lanjutkan'}).click();
+    await poster.getByRole('button',{name:'Informasi Banner'}).click();
+    await poster.getByLabel('Judul banner *').fill(title);
+    for (let step=0;step<3;step++) await poster.getByRole('button',{name:'Lanjutkan'}).click();
+    await poster.getByRole('button',{name:new RegExp(theme)}).click();
+    await poster.getByRole('button',{name:'Buat 3 variasi desain'}).click();
+    await poster.getByRole('img',{name:`Pratinjau desain ${theme}`,exact:true}).nth(2).waitFor();
+    const scene=await waitForSaved(poster,project=>project?.step===4);
+    assert.equal(new Set(scene.designs.map(design=>design.concept)).size,3);
+    assert(scene.designs.every(design=>design.concept && design.nodes.some(node=>node.kind==='art')));
+    assert(scene.designs.every(design=>design.nodes.filter(node=>node.kind==='portrait').length===count));
+    assert.equal(await poster.locator('.results-grid-portrait').evaluate(grid=>getComputedStyle(grid).gridTemplateColumns.split(' ').length),3);
+    if(process.env.AKHIRNYA_SHOTS) await poster.screenshot({path:`/tmp/akhirnya-scenes-${count}.png`,fullPage:true});
+    if (count===2 || count===3 || count===5) {
+      await poster.getByRole('button',{name:'Perbesar variasi 1'}).click();
+      const detail=poster.getByRole('dialog');
+      await detail.getByRole('img').waitFor();
+      assert(await detail.evaluate(dialog=>dialog.getBoundingClientRect().width>window.innerWidth*.95));
+      await detail.getByRole('button',{name:'Edit di studio'}).click();
+      await poster.getByRole('button',{name:'Tekstur cetak',exact:true}).waitFor();
+      await poster.getByRole('button',{name:'Siap Cetak!',exact:true}).waitFor();
+      if(process.env.AKHIRNYA_SHOTS) await poster.screenshot({path:`/tmp/akhirnya-scene-editor-${count}.png`});
+    }
+    if (count===3) {
+      const layer=poster.getByRole('button',{name:/Anindya Ratih Maharani.*S.Kom/}).first();
+      await layer.click();
+      await poster.getByLabel('Isi teks').fill('Anindya Ratih Maharani, S.Kom.');
+      await poster.getByRole('button',{name:'Simpan dulu (Ctrl+S)'}).click();
+      await waitForSaved(poster,project=>project?.designs.some(design=>design.canvas?.objects.some(object=>object.text==='Anindya Ratih Maharani, S.Kom.')));
+      await poster.reload();
+      await poster.getByRole('button',{name:'Anindya Ratih Maharani, S.Kom.',exact:true}).waitFor();
+    }
+    if (count===5) {
+      await poster.getByRole('button',{name:'Siap Cetak!',exact:true}).click();
+      await poster.getByLabel('Resolusi').selectOption('150');
+      const png=await download(poster);
+      assert.equal(png.readUInt32BE(16),3543);
+      assert.equal(png.readUInt32BE(20),9449);
+    }
+    console.log(`${theme} 60 × 160 cm dengan ${count} wisudawan berhasil dirender.`);
+    await poster.close();
+  }
 } finally {await browser.close();}

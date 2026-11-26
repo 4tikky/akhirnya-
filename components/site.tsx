@@ -36,14 +36,14 @@ export function IconButton({ label, children, className = '', ...props }: Button
   return <button type="button" className={'icon-btn '+className} aria-label={label} title={label} {...props}>{children}</button>;
 }
 
-export function Dialog({ title, children, onClose, wide = false }: {title:string;children:ReactNode;onClose:() => void;wide?:boolean}) {
+export function Dialog({ title, children, onClose, wide = false, full = false }: {title:string;children:ReactNode;onClose:() => void;wide?:boolean;full?:boolean}) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const element = ref.current;
     element?.showModal();
     return () => { element?.close(); };
   },[]);
-  return <dialog ref={ref} className={`dialog ${wide?'dialog-wide':''}`} aria-label={title} onCancel={event => { event.preventDefault(); onClose(); }}><div className="dialog-head"><h2>{title}</h2><IconButton label="Tutup" onClick={onClose} autoFocus><X size={21}/></IconButton></div>{children}</dialog>;
+  return <dialog ref={ref} className={`dialog ${full?'dialog-full':wide?'dialog-wide':''}`} aria-label={title} onCancel={event => { event.preventDefault(); onClose(); }}><div className="dialog-head"><h2>{title}</h2><IconButton label="Tutup" onClick={onClose} autoFocus><X size={21}/></IconButton></div>{children}</dialog>;
 }
 
 export function StepActions({ onBack, onNext, next = 'Lanjutkan', disabled }: {onBack?:()=>void;onNext:()=>void;next?:string;disabled?:boolean}) {

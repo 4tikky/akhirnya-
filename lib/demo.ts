@@ -4,7 +4,9 @@ import { newGraduate, newProject } from './types';
 export async function demoProject() {
   const project = newProject();
   project.name = 'Akhirnya Lulus — Wisuda Informatika';
-  project.headline = 'The Final Chapter';
+  project.headline = 'Menuju Puncak Sarjana';
+  project.theme = 'adventure';
+  project.size = {width:60,height:160};
   project.university = 'Universitas Nusantara';
   project.faculty = 'Fakultas Teknik';
   project.major = 'Informatika';

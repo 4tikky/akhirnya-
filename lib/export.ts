@@ -92,7 +92,7 @@ export function lowResolution(design: Design, project: Project, options: ExportO
       for (const object of items) {
         if (!object || typeof object !== 'object') continue;
         const props = object as Record<string,unknown>;
-        if (props.visible === false || props.opacity === 0) continue;
+        if (props.visible === false || props.opacity === 0 || props.label==='Kontur potret') continue;
         const x = xScale * (typeof props.scaleX === 'number' ? Math.abs(props.scaleX) : 1);
         const y = yScale * (typeof props.scaleY === 'number' ? Math.abs(props.scaleY) : 1);
         if (Array.isArray(props.objects)) inspect(props.objects,x,y);

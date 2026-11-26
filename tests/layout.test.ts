@@ -97,7 +97,7 @@ test('a provider design is validated and rendered as editable layout nodes',asyn
   const project = fixture(3);
   const spec = {theme:'gaming',headline:'Mission Passed: S.Kom.',palette:['#22223b','#f2f3f4','#4f89ff','#333356'],layout:'staggered'};
   const [design] = generateFromSpec(project,spec);
-  assert(design.nodes.some(node=>node.kind==='text' && node.text===spec.headline));
+  assert(design.nodes.some(node=>node.kind==='text' && node.text.replace(/\s+/g,' ')===spec.headline));
   assert.equal(design.palette.bg,spec.palette[0]);
   assert.throws(()=>generateFromSpec(project,{...spec,palette:['url(https://example.com)']}));
 });
@@ -153,4 +153,43 @@ test('stand banner exports keep width and height in portrait order',()=>{
   assert.deepEqual([stand.width,stand.height,stand.widthMm,stand.heightMm],[1701,4535,600,1600]);
   const withBleed=exportDimensions({width:80,height:180},72,5);
   assert.deepEqual([withBleed.width,withBleed.height,withBleed.widthMm,withBleed.heightMm],[2296,5131,810,1810]);
+});
+
+test('flagship collections produce three distinct authored scenes for 2, 3, 5, 7, 10 and 15 people',()=>{
+  for (const theme of ['adventure','scrapbook','picnic'] as const) {
+    for (const count of [2,3,5,7,10,15]) {
+      const project={...fixture(count),size:{width:60,height:160},theme};
+      const designs=generateDesigns(project);
+      const label=`${theme}, ${count} graduates`;
+      assert.equal(designs.length,3,label);
+      assert.equal(new Set(designs.map(design=>design.concept)).size,3,label);
+      assert(designs.every(design=>design.concept&&design.dimensions.width===450&&design.dimensions.height===1200),label);
+      const signatures=new Set<string>();
+      for (const design of designs) {
+        const art=design.nodes.filter(node=>node.kind==='art');
+        const portraits=design.nodes.filter(node=>node.kind==='portrait');
+        assert.equal(portraits.length,count,label);
+        assert.equal(new Set(portraits.map(node=>node.graduateId)).size,count,label);
+        assert(art.some(node=>node.layer==='sticker') && art.some(node=>node.layer==='background') && art.some(node=>node.layer==='environment'),label);
+        assert(new Set(art.map(node=>node.asset)).size>=5,label);
+        signatures.add(art.filter(node=>node.layer==='background').map(node=>node.asset).join(',')+'/'+portraits[0].presentation);
+        for (const person of project.graduates) {
+          const name=design.nodes.find(node=>node.kind==='text'&&node.graduateId===person.id);
+          assert(name?.kind==='text'&&name.text.replace(/\s/g,'')===(person.name+', '+person.degree).replace(/\s/g,''),label);
+        }
+      }
+      assert.equal(signatures.size,3,label);
+      assert.deepEqual(parseProject(exportProject({...project,designs})).designs.map(item=>item.concept),designs.map(item=>item.concept));
+    }
+  }
+});
+
+test('illustrated collections adapt the scene for landscape rather than falling through to legacy layouts',()=>{
+  for (const theme of themes.filter(item=>item.id!=='elegant' && item.id!=='meme')) {
+    const project={...fixture(5),theme:theme.id,size:{width:300,height:150}};
+    const designs=generateDesigns(project);
+    assert.equal(designs.length,3,theme.name);
+    assert(designs.every(design=>design.concept&&design.nodes.some(node=>node.kind==='art'&&node.layer==='environment')),theme.name);
+    assert(designs.every(design=>!design.strategy.startsWith('portrait-')),theme.name);
+  }
 });
